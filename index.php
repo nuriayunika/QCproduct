@@ -1,0 +1,1332 @@
+<?php 
+session_start();
+
+if(!isset($_SESSION['status']) || $_SESSION['status'] != "login"){
+    header("location:login.php");
+    exit();
+}
+include 'koneksi.php'; 
+
+// Ambil role, lowercase & trim untuk konsistensi perbandingan
+$role = strtolower(trim($_SESSION['role']));
+
+// is_operator: role apapun yang MENGANDUNG kata "operator"
+$is_operator = (strpos($role, 'operator') !== false);
+
+// Area operator berdasarkan role
+// operator_test / operator_test_*       -> hanya Test Running
+// operator_final_inspection / operator_fi -> hanya Final Inspection  
+// operator_packing                       -> hanya Packing
+// operator (tanpa spesifik)              -> semua area (backward compatible)
+$op_area_tr = (strpos($role, 'operator') !== false && (
+    strpos($role, 'final') === false &&
+    strpos($role, 'packing') === false
+)); // test running: operator_test, operator, operator_*
+
+$op_area_fi = (strpos($role, 'final') !== false || 
+               strpos($role, 'fi') !== false && strpos($role, 'operator') !== false);
+
+$op_area_pk = (strpos($role, 'packing') !== false);
+
+// Kalau role operator generic (tidak spesifik), bisa semua area
+if ($is_operator && !$op_area_fi && !$op_area_pk) {
+    $op_area_tr = true; // default ke test running
+}
+
+// is_approver: role yang MENGANDUNG salah satu kata kunci approver
+// Menangkap semua varian: foreman, supervisor, assistant_manager, asisten_manager, manager
+$is_approver = (
+    strpos($role, 'foreman')    !== false ||
+    strpos($role, 'supervisor') !== false ||
+    strpos($role, 'manager')    !== false   // menangkap: manager, assistant_manager, asisten_manager
+);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QC Product - Quality Management Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .module-section { display: none; }
+        .module-section.active-module { display: block; }
+        .qc-nav-btn.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .approval-nav-btn.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+
+        /* Pipeline status pills */
+        .pipeline-step { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; border:1px solid #dee2e6; background:#f8f9fa; color:#6c757d; white-space:nowrap; }
+        .pipeline-step.done   { background:#d1e7dd; color:#0a3622; border-color:#a3cfbb; }
+        .pipeline-step.active { background:#fff3cd; color:#664d03; border-color:#ffc107; }
+        .pipeline-step.reject { background:#f8d7da; color:#58151c; border-color:#f1aeb5; }
+        .pipeline-arrow { color:#adb5bd; font-size:9px; margin:0 2px; }
+
+        /* Approval table */
+        .approval-table th { font-size:11px; vertical-align:middle; background-color:#343a40; color:#fff; }
+        .approval-table td { font-size:12px; vertical-align:middle; }
+        .approval-table tr:hover td { background-color:#f0f4ff; }
+
+        /* Status badges */
+        .badge-pending  { background-color:#ffc107; color:#212529; }
+        .badge-approved { background-color:#198754; color:#fff; }
+        .badge-rejected { background-color:#dc3545; color:#fff; }
+        .badge-waiting  { background-color:#6c757d; color:#fff; }
+
+        #modalRejectReason .modal-header { background-color:#dc3545; color:#fff; }
+    </style>
+</head>
+<body>
+
+<!-- ===================================================
+     TOP NAVBAR (shared semua role)
+=================================================== -->
+<div class="container-fluid pt-3">
+    <div class="card-body bg-white p-3 border rounded shadow-sm mb-2">
+        <div class="d-flex justify-content-between align-items-center w-100 flex-nowrap">
+
+            <div class="d-flex gap-2 justify-content-start flex-wrap align-items-center">
+                <?php if($is_operator): ?>
+                    <!-- Tombol nav OPERATOR - semua tab kelihatan -->
+                    <button type="button" class="btn btn-light qc-nav-btn active" id="btn-test-running" onclick="switchModule('test-running')">Test Running</button>
+                    <button type="button" class="btn btn-light qc-nav-btn" id="btn-final-inspection" onclick="switchModule('final-inspection')">Final Inspection</button>
+                    <button type="button" class="btn btn-light qc-nav-btn" id="btn-packing" onclick="switchModule('packing')">Packing</button>
+                <?php elseif($is_approver): ?>
+                    <!-- Tombol nav APPROVER -->
+                    <button type="button" class="btn btn-light approval-nav-btn active" id="btn-test-running"     onclick="switchModule('test-running')">
+                        <i class="fa-solid fa-clipboard-check me-1"></i>Test Running
+                    </button>
+                    <button type="button" class="btn btn-light approval-nav-btn"        id="btn-final-inspection" onclick="switchModule('final-inspection')">
+                        <i class="fa-solid fa-magnifying-glass-chart me-1"></i>Final Inspection
+                    </button>
+                    <button type="button" class="btn btn-light approval-nav-btn"        id="btn-packing"          onclick="switchModule('packing')">
+                        <i class="fa-solid fa-box-archive me-1"></i>Packing
+                    </button>
+                <?php endif; ?>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 ms-auto text-end">
+                <div class="bg-light border rounded px-3 py-1 d-flex align-items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-user-gear text-secondary" style="font-size:12px;"></i>
+                    <span class="fw-bold text-dark text-nowrap" style="font-size:12px; letter-spacing:0.3px;">
+                        <?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>
+                    </span>
+                    <span class="badge bg-dark text-white text-uppercase px-2 py-1" style="font-size:9px; font-weight:700; letter-spacing:0.5px;">
+                        <?php echo str_replace('_', ' ', $_SESSION['role']); ?>
+                    </span>
+                </div>
+                <a href="logout.php"
+                   class="btn btn-danger btn-sm fw-bold shadow-sm px-3 d-flex align-items-center justify-content-center text-nowrap"
+                   style="font-size:11px; border-radius:4px; letter-spacing:0.5px; padding-top:7px; padding-bottom:7px;"
+                   onclick="return confirm('Apakah Anda yakin ingin keluar dari sistem?')">
+                    <i class="fa-solid fa-right-from-bracket me-2" style="font-size:11px;"></i> LOG OUT
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<?php if($is_operator): ?>
+<!-- ===================================================
+     OPERATOR VIEW — FORM INPUT
+=================================================== -->
+
+<!-- ---- TAB: TEST RUNNING ---- -->
+<div id="sec-test-running" class="module-section active-module">
+    <div class="container-fluid pb-3">
+        <form action="simpan_test_run.php" method="POST">
+
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header card-header-custom py-2">
+                    <h5 class="card-title m-0 text-center fw-bold">TEST RUNNING</h5>
+                </div>
+                <div class="card-body bg-header-blue p-3">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Test Name</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="test_name" class="form-control form-control-sm bg-light fw-bold text-secondary" value="Full load" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Engine Model</label>
+                                <div class="col-sm-7">
+                                    <select name="engine_model" id="engine_model" class="form-select form-select-sm fw-bold text-dark border-primary shadow-sm" required>
+                                        <option value="">- Pilih Model -</option>
+                                        <?php 
+                                        $q_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec");
+                                        while($m = mysqli_fetch_array($q_model)) {
+                                            echo "<option value='".$m['engine_model']."'>".$m['engine_model']."</option>";
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine No.</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="engine_no" class="form-control form-control-sm bg-white" required placeholder="Ketik No. Mesin...">
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Cont. Power</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="cont_power" id="cont_power" class="form-control form-control-sm bg-light text-secondary fw-bold" readonly placeholder="Menunggu model...">
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Max Power</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="max_power" id="max_power" class="form-control form-control-sm bg-light text-secondary fw-bold" readonly placeholder="Menunggu model...">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Test Date</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control form-control-sm bg-light fw-bold text-secondary" value="<?php echo date('d/m/Y'); ?>" readonly>
+                                    <input type="hidden" name="test_date" value="<?php echo date('Y-m-d'); ?>">
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Bench Test</label>
+                                <div class="col-sm-7">
+                                    <select name="bench_test" class="form-select form-select-sm">
+                                        <option value="No.1 ED 22">No.1 ED 22</option>
+                                        <option value="No.2 ED 22">No.2 ED 22</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Operator Name</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control" name="operator_name" value="<?php echo $_SESSION['nama_lengkap']; ?>" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Lube Oil</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="lube_oil" class="form-control form-control-sm bg-light text-secondary" value="Meditran SAE-40" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Fuel</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="fuel_type" class="form-control form-control-sm bg-light text-secondary" value="B0" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Fuel sp. Grafity</label>
+                                <div class="col-sm-7"><input type="number" name="fuel_sp_gravity" step="0.001" class="form-control form-control-sm bg-white"></div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Dry temp (°C)</label>
+                                <div class="col-sm-7"><input type="number" name="dry_temp" step="0.1" class="form-control form-control-sm bg-white"></div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Wet temp (°C)</label>
+                                <div class="col-sm-7"><input type="number" name="wet_temp" step="0.1" class="form-control form-control-sm bg-white"></div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Atmosphere press</label>
+                                <div class="col-sm-7"><input type="number" name="atmosphere_press" step="0.1" class="form-control form-control-sm bg-white"></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="row mb-1 align-items-center">
+                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Limiter Act.</label>
+                                <div class="col-sm-8">
+                                    <input type="text" name="limiter_actual" class="form-control form-control-sm bg-white">
+                                </div>
+                            </div>
+                            <div class="row mb-1 align-items-center">
+                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Limiter After Set</label>
+                                <div class="col-sm-8">
+                                    <input type="text" name="limiter_after_set" class="form-control form-control-sm bg-white">
+                                </div>
+                            </div>
+                            <div class="row mb-1 align-items-center">
+                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Hi Idle</label>
+                                <div class="col-sm-4">
+                                    <input type="text" id="lbl_hi_idle" class="form-control form-control-sm bg-light text-secondary text-center fw-bold" readonly placeholder="-">
+                                </div>
+                                <div class="col-sm-4">
+                                    <input type="number" name="hi_idle_actual" class="form-control form-control-sm bg-white text-center">
+                                </div>
+                            </div>
+                            <div class="row mb-1 align-items-center">
+                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Eng. Speed Max</label>
+                                <div class="col-sm-8">
+                                    <input type="number" name="eng_speed_max" class="form-control form-control-sm bg-white">
+                                </div>
+                            </div>
+                            <div class="row mb-1 align-items-center">
+                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Eng. Speed Min</label>
+                                <div class="col-sm-8">
+                                    <input type="number" name="eng_speed_min" class="form-control form-control-sm bg-white">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body p-3">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="section-title text-center">Leakage Check</div>
+                            <div class="px-2" style="max-height: 200px; overflow-y: auto;">
+                                <?php 
+                                $q_leak = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Leakage Check'");
+                                while($l = mysqli_fetch_array($q_leak)) { ?>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
+                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $l['item_checking']; ?></span>
+                                        <input type="hidden" name="chk_item[]" value="<?php echo $l['item_checking']; ?>">
+                                        <input type="hidden" name="chk_type[]" value="Leakage Check">
+                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
+                                            <option value="Yes">Yes</option>
+                                            <option value="No">No</option>
+                                        </select>
+                                    </div>
+                                <?php } ?>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 border-start border-end">
+                            <div class="section-title text-center">Assembly Check</div>
+                            <div class="px-2" style="max-height: 200px; overflow-y: auto;">
+                                <?php 
+                                $q_ass = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Assembly Check'");
+                                while($a = mysqli_fetch_array($q_ass)) { ?>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
+                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $a['item_checking']; ?></span>
+                                        <input type="hidden" name="chk_item[]" value="<?php echo $a['item_checking']; ?>">
+                                        <input type="hidden" name="chk_type[]" value="Assembly Check">
+                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
+                                            <option value="Yes">Yes</option>
+                                            <option value="No">No</option>
+                                        </select>
+                                    </div>
+                                <?php } ?>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="section-title text-center">Function of Component</div>
+                            <div class="px-2" style="max-height: 200px; overflow-y: auto;">
+                                <?php 
+                                $q_fun = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Function of Component'");
+                                while($f = mysqli_fetch_array($q_fun)) { ?>
+                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
+                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $f['item_checking']; ?></span>
+                                        <input type="hidden" name="chk_item[]" value="<?php echo $f['item_checking']; ?>">
+                                        <input type="hidden" name="chk_type[]" value="Function of Component">
+                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
+                                            <option value="OK">OK</option>
+                                            <option value="NG">NG</option>
+                                        </select>
+                                    </div>
+                                <?php } ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3 shadow-sm table-gray-custom">
+                <div class="card-body p-2">
+                    <div class="section-title m-0 mb-1">MAIN DATA PERFORMANCE TEST (DATA 1 & DATA 2 INTEGRATED)</div>
+                    <div class="scrollable-table">
+                        <table class="table table-sm table-bordered m-0 text-center align-middle">
+                            <thead>
+                                <tr>
+                                    <th rowspan="3" style="width: 40px;">No</th>
+                                    <th rowspan="3" style="min-width: 130px;">Eng. Speed min-1</th>
+                                    <th colspan="8" class="bg-primary text-white">OUTPUT, TORQUE & FUEL (DATA 1)</th>
+                                    <th colspan="10" class="bg-success text-white">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>
+                                </tr>
+                                <tr>
+                                    <th colspan="2">Output</th>
+                                    <th rowspan="2">Torque<br>(Nm)<span id="std_torque_lbl" class="std-label">-</span></th>
+                                    <th rowspan="2">Load<br>(kgm)<span id="std_load_lbl" class="std-label">-</span></th>
+                                    <th colspan="3">Fuel Cons</th>
+                                    <th rowspan="2">Sd<br>(BSU)<span id="std_sd_lbl" class="std-label">-</span></th>
+                                    <th rowspan="2">Exhaust<br>(°C)<span id="lbl_ex_r1" class="std-label">-</span></th>
+                                    <th rowspan="2">Oil Temp<br>(°C)<span id="lbl_oil_r1" class="std-label">-</span></th>
+                                    <th rowspan="2">LO<br>(Mpa)<span id="lbl_lo_r1" class="std-label">-</span></th>
+                                    <th rowspan="2">Intake (kPa)</th>
+                                    <th rowspan="2">Exhaust (kPa)</th>
+                                    <th rowspan="2">NOx (ppm)</th>
+                                    <th rowspan="2">CO (ppm)</th>
+                                    <th rowspan="2">CO2 (%)</th>
+                                    <th rowspan="2">O2 (%)</th>
+                                    <th rowspan="2">Correct CO<span id="std_correct_co_lbl" class="std-label">-</span></th>
+                                </tr>
+                                <tr>
+                                    <th>Actual (Nm)</th>
+                                    <th>Corrected (kW)<span id="std_output_lbl" class="std-label">-</span></th>
+                                    <th>cc/30 sec</th>
+                                    <th>mm³/st<span id="std_fuel_mm3_lbl" class="std-label">-</span></th> 
+                                    <th>g/kWh<span id="std_fuel_gkwh_lbl" class="std-label">-</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td class="text-start fw-bold" id="lbl_speed1">-</td>
+                                    <td><input type="number" name="r1_actual_nm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_corrected_kw" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_torque_nm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_load_kgm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_cc_30sec" step="0.1" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_mm3_st" step="0.1" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_g_kwh" step="0.1" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_sd_bsu" step="0.1" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_temp_exhaust" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_temp_oil" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_lo_press" step="0.001" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_intake_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_exhaust_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_nox" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_co" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_co2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_o2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td class="bg-secondary"></td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td class="text-start fw-bold" id="lbl_speed2">-</td>
+                                    <td><input type="number" name="r2_actual_nm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_corrected_kw" step="0.01" class="form-control form-control-sm"></td>
+                                    <td class="bg-secondary" colspan="6"></td>
+                                    <td><input type="number" name="r2_temp_exhaust" class="form-control form-control-sm"></td>
+                                    <td class="bg-secondary"></td>
+                                    <td><input type="number" name="r2_lo_press" step="0.001" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_intake_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_exhaust_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_nox" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_co" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_co2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_o2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_correct_co" class="form-control form-control-sm"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size: 11px; border: 1px solid #808080;">
+                            <thead>
+                                <tr style="background-color: #a9a9a9; color: black; font-weight: bold; text-align: center; vertical-align: middle;">
+                                    <th rowspan="2" style="border: 1px solid #000000;">Eng. Speed</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque (Nm)</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Coolant (°C)</th>
+                                    <th colspan="2" style="border: 1px solid #000000;">Current (A)</th> 
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Box LO</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Air Intake</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Bolt CW</th>
+                                    <th colspan="2" style="border: 1px solid #000000;">Torque Injection pipe</th> 
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Nut Joint</th>
+                                </tr>
+                                <tr style="background-color: #a9a9a9; color: black; text-align: center; vertical-align: middle; font-size: 11px;">
+                                    <th style="border: 1px solid #000000; font-weight: normal;">at glow plug a</th>
+                                    <th style="border: 1px solid #000000; font-weight: normal;">wire battery</th>
+                                    <th style="border: 1px solid #000000; font-weight: normal;">at injector</th>
+                                    <th style="border: 1px solid #000000; font-weight: normal;">at FOP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="fw-bold" id="lbl_speed3">-</td>
+                                    <td><input type="number" name="r3_torque_nm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_coolant_temp" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_current_glow" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_current_wire" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm" placeholder="Std 10-12"></td>
+                                    <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm" placeholder="Std 24-28"></td>
+                                    <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm" placeholder="Std 25-29"></td>
+                                    <td><input type="number" name="r3_torque_injection_injector" class="form-control form-control-sm" placeholder="at injector"></td>
+                                    <td><input type="number" name="r3_torque_injection_fop" class="form-control form-control-sm" placeholder="at FOP"></td>
+                                    <td><input type="number" name="r3_torque_nut_joint" class="form-control form-control-sm" placeholder="Std 27-37"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-primary text-white py-2">
+                            <h6 class="card-title mb-0 text-center fw-bold">Correction Factor & Blow By</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-bordered m-0 text-center align-middle" style="border: 1px solid #808080; font-size: 12px; height: 100%;">
+                                <tbody>
+                                    <tr style="background-color: #a9a9a9; color: black;">
+                                        <td colspan="2" class="fw-bold py-2" style="width: 50%;">Correction Factor</td>
+                                        <td rowspan="2" class="fw-bold py-2" style="width: 50%; vertical-align: middle;">Blow by (std &lt;0.8%)</td>
+                                    </tr>
+                                    <tr style="background-color: #a9a9a9; color: black;">
+                                        <td class="fw-bold py-1" style="width: 25%;">α</td>
+                                        <td class="fw-bold py-1" style="width: 25%;">β</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-2"><input type="text" name="correction_alpha" class="form-control text-center" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="text" name="correction_beta" class="form-control text-center" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="text" name="blow_by" class="form-control text-center" style="border-radius: 4px;"></td>
+                                    </tr>
+                                    <tr style="background-color: #a9a9a9; color: black;">
+                                        <td colspan="2" class="fw-bold py-2" style="line-height: 1.3; font-size: 11px; height: 40px; vertical-align: middle;">
+                                            Min eng. Speed when LO switch<br>ON &le;500 rpm
+                                        </td>
+                                        <td class="fw-bold py-2" style="line-height: 1.3; font-size: 11px; height: 40px; vertical-align: middle;">
+                                            Distance of Pulley Crank Shaft to Ring<br>Gear (std 92-93 mm/96-97 mm)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" class="p-2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="min_eng_speed_lo" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #a9a9a9; border-left: 0; font-size: 11px;">Rpm</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="pulley_distance" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #a9a9a9; border-left: 0; font-size: 11px;">mm</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header bg-primary text-white py-2">
+                            <h6 class="card-title mb-0 text-center fw-bold">Fuel Injection Timing (FIC)</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-bordered m-0 align-middle" style="border: 1px solid #808080; font-size: 12px; height: 100%;">
+                                <tbody>
+                                    <tr>
+                                        <td class="fw-bold table-light" style="width: 35%; background-color: #a9a9a9; color: black; padding-left: 10px;">FIC standard</td>
+                                        <td colspan="2" class="p-1" style="background-color: #e0e0e0;">
+                                            <input type="text" name="fic_standard" id="fic_standard" class="form-control form-control-sm fw-bold text-primary text-center bg-transparent border-0" readonly placeholder="-">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC actual</td>
+                                        <td class="p-1" colspan="2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="fic_actual_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <input type="text" name="fic_actual_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC before test</td>
+                                        <td class="p-1" colspan="2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="fic_before_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <input type="text" name="fic_before_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC after test</td>
+                                        <td class="p-1" colspan="2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="fic_after_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <input type="text" name="fic_after_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">Belt tension 15-20 mm</td>
+                                        <td class="p-1" colspan="2">
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" name="belt_tension_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">mm</span>
+                                                <input type="text" name="belt_tension_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card shadow-sm h-100 bg-light border-secondary">
+                        <div class="card-body d-flex flex-column justify-content-center align-items-center p-3">
+                            <?php if($op_area_tr): ?>
+                            <button type="submit" class="btn btn-success w-100 py-3 fw-bold shadow-sm">
+                                <i class="fa-solid fa-paper-plane me-2"></i>SIMPAN DATA TEST RUN
+                            </button>
+                            <?php else: ?>
+                            <button type="button" class="btn btn-secondary w-100 py-3 fw-bold shadow-sm" disabled>
+                                <i class="fa-solid fa-lock me-2"></i>BUKAN AREA ANDA
+                            </button>
+                            <small class="text-muted mt-2 d-block text-center" style="font-size:11px;">
+                                Anda adalah Operator <?php echo strtoupper(str_replace('_',' ',$_SESSION['role'])); ?>
+                            </small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+
+
+<!-- ---- TAB: FINAL INSPECTION (placeholder) ---- -->
+<div id="sec-final-inspection" class="module-section">
+    <div class="container-fluid pb-3">
+        <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi">
+
+            <!-- HEADER CARD -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-2" style="background-color:#157347;">
+                    <h5 class="card-title m-0 text-center fw-bold text-white">FINAL INSPECTION</h5>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Inspect Date</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control form-control-sm bg-light fw-bold text-secondary"
+                                           value="<?php echo date('d/m/Y'); ?>" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine Model</label>
+                                <div class="col-sm-7">
+                                    <select name="engine_model" id="fi_engine_model"
+                                            class="form-select form-select-sm fw-bold text-dark border-success shadow-sm" required>
+                                        <option value="">- Pilih Model -</option>
+                                        <?php
+                                        $q_fi_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_final_inspection ORDER BY engine_model");
+                                        while ($fm = mysqli_fetch_array($q_fi_model)) {
+                                            echo "<option value='".$fm['engine_model']."'>".$fm['engine_model']."</option>";
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine No.</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="engine_no" class="form-control form-control-sm"
+                                           required placeholder="Ketik No. Mesin...">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm">Operator</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control form-control-sm bg-light text-secondary"
+                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-1">
+                                <label class="col-sm-2 col-form-label col-form-label-sm">Noted</label>
+                                <div class="col-sm-10">
+                                    <textarea name="noted" class="form-control form-control-sm" rows="3"
+                                              placeholder="Catatan tambahan (opsional)..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHECKLIST TABLE -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2 px-1">
+                        <span class="fw-bold text-success" style="font-size:13px;">
+                            <i class="fa-solid fa-list-check me-1"></i>CHECKLIST FINAL INSPECTION
+                        </span>
+                        <span class="text-muted" style="font-size:11px;" id="fi_item_count">
+                            Pilih Engine Model untuk memuat checklist
+                        </span>
+                    </div>
+
+                    <div id="fi_checklist_container">
+                        <!-- Diisi via AJAX setelah model dipilih -->
+                        <div class="text-center text-muted py-5" id="fi_empty_msg">
+                            <i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block text-success opacity-50"></i>
+                            Pilih Engine Model terlebih dahulu untuk memuat daftar checklist.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUBMIT -->
+            <div class="row g-2">
+                <div class="col-md-12">
+                    <div class="card shadow-sm bg-light">
+                        <div class="card-body d-flex justify-content-end align-items-center p-3 gap-3">
+                            <button type="button" class="btn btn-outline-danger btn-sm fw-bold"
+                                    onclick="resetFIForm()">
+                                <i class="fa-solid fa-rotate-left me-1"></i>Reset Form
+                            </button>
+                            <?php if($op_area_fi): ?>
+                            <button type="submit" class="btn btn-success fw-bold px-4 py-2 shadow-sm"
+                                    id="btn_fi_submit" disabled>
+                                <i class="fa-solid fa-paper-plane me-2"></i>SIMPAN FINAL INSPECTION
+                            </button>
+                            <?php else: ?>
+                            <button type="button" class="btn btn-secondary fw-bold px-4 py-2 shadow-sm" disabled>
+                                <i class="fa-solid fa-lock me-2"></i>BUKAN AREA ANDA
+                            </button>
+                            <small class="text-muted" style="font-size:11px;">
+                                Anda adalah Operator <?php echo strtoupper(str_replace('_',' ',$_SESSION['role'])); ?>
+                            </small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<!-- Template tabel checklist (diisi AJAX) -->
+<template id="tpl_fi_table">
+<div class="table-responsive">
+<table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size:12px;">
+    <thead>
+        <tr style="background-color:#157347; color:#fff;">
+            <th style="width:35px;">#</th>
+            <th class="text-start" style="min-width:200px;">Inspection Item</th>
+            <th class="text-start" style="min-width:200px;">Parameter / Standard</th>
+            <th style="width:100px;">Hasil</th>
+            <th style="width:160px;">Foto</th>
+        </tr>
+    </thead>
+    <tbody id="fi_tbody"></tbody>
+</table>
+</div>
+</template>
+
+
+
+
+<!-- ---- TAB: PACKING (placeholder) ---- -->
+<div id="sec-packing" class="module-section">
+    <div class="container-fluid pb-3">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark py-2">
+                <h5 class="card-title m-0 fw-bold">PACKING MODULE</h5>
+            </div>
+            <div class="card-body bg-white p-4 text-center">
+                <p class="text-muted">Konten Manajemen, Checklist Kelengkapan, dan Approval Status Selesai Packing akan tampil di area ini.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<?php elseif($is_approver): ?>
+<!-- ===================================================
+     APPROVER VIEW — DASHBOARD APPROVAL
+=================================================== -->
+
+<?php
+/**
+ * Render tabel approval.
+ * Membaca data dari tabel utama (result_test_run / final_inspection_data / packing_data)
+ * dan membaca status approval dari tabel `approvals` (tabel terpisah).
+ *
+ * @param string $dataTable  Tabel data utama: 'result_test_run', 'final_inspection_data', 'packing_data'
+ * @param string $stage      Nilai stage di tabel approvals: 'Test_Running', 'Final_Inspection', 'Packing'
+ * @param array  $levels     Urutan role approver beserta label DB-nya:
+ *                           [ ['role_key'=>'Foreman','label'=>'Foreman'], ... ]
+ * @param string $role       Role user login (sudah strtolower)
+ * @param mysqli $koneksi    Koneksi DB
+ */
+function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
+
+    // Mapping role session (lowercase) ke nilai role di tabel approvals
+    $roleMap = [
+        'foreman'           => 'Foreman',
+        'supervisor'        => 'Supervisor',
+        'assistant_manager' => 'Asst_Manager',
+        'asisten_manager'   => 'Asst_Manager',
+        'manager'           => 'Asst_Manager',
+    ];
+    // Cari role_key DB dari role session yang aktif
+    $myRoleDB = null;
+    foreach ($roleMap as $sessionKey => $dbVal) {
+        if (strpos($role, $sessionKey) !== false) {
+            $myRoleDB = $dbVal;
+            break;
+        }
+    }
+    // Apakah role ini punya hak approve di modul ini?
+    $canApprove = false;
+    $myIdx      = -1;
+    foreach ($levels as $i => $lvl) {
+        if ($lvl['role_key'] === $myRoleDB) {
+            $canApprove = true;
+            $myIdx      = $i;
+            break;
+        }
+    }
+
+    // Cek tabel data utama ada
+    $tblCheck = mysqli_query($koneksi, "SHOW TABLES LIKE '$dataTable'");
+    if (!$tblCheck || mysqli_num_rows($tblCheck) === 0) {
+        echo '<div class="alert alert-info mb-0">
+                <i class="fa-solid fa-circle-info me-2"></i>
+                Tabel data <strong>'.$dataTable.'</strong> belum ada di database.
+              </div>';
+        return;
+    }
+
+    // Ambil semua data submit operator
+    $rows = mysqli_query($koneksi,
+        "SELECT * FROM `$dataTable` ORDER BY id DESC"
+    );
+    if (!$rows) {
+        echo '<div class="alert alert-warning mb-0">Query gagal: '.mysqli_error($koneksi).'</div>';
+        return;
+    }
+
+    // Ambil semua approval record untuk stage ini sekaligus (biar tidak N+1 query)
+    $stage_esc    = mysqli_real_escape_string($koneksi, $stage);
+    $allApprovals = [];
+    $apvQuery = mysqli_query($koneksi,
+        "SELECT * FROM approvals WHERE stage = '$stage_esc' ORDER BY id ASC"
+    );
+    if ($apvQuery) {
+        while ($apvRow = mysqli_fetch_assoc($apvQuery)) {
+            // Index: [test_run_id][role] = row
+            $allApprovals[$apvRow['test_run_id']][$apvRow['role']] = $apvRow;
+        }
+    }
+?>
+    <div class="table-responsive">
+    <table class="table table-bordered table-hover approval-table mb-0">
+        <thead>
+            <tr>
+                <th style="width:40px;">#</th>
+                <th>Engine No.</th>
+                <th>Engine Model</th>
+                <th>Operator</th>
+                <th>Tgl Submit</th>
+                <th>Pipeline Approval</th>
+                <th>Status</th>
+                <?php if($canApprove): ?><th style="width:190px;">Aksi</th><?php endif; ?>
+            </tr>
+        </thead>
+        <tbody>
+        <?php
+        $no = 1; $found = false;
+        while ($row = mysqli_fetch_assoc($rows)):
+            $found     = true;
+            $recordId  = $row['id'];
+            $apvRecord = $allApprovals[$recordId] ?? [];
+
+            // Hitung status tiap level & status akhir
+            $levelStatus  = [];  // ['Foreman' => 'approved'/'rejected'/'pending', ...]
+            $finalStatus  = 'Pending';
+            $allApproved  = true;
+            $anyRejected  = false;
+            $rejectNote   = '';
+
+            foreach ($levels as $lvl) {
+                $rk  = $lvl['role_key'];
+                $apv = $apvRecord[$rk] ?? null;
+                if ($apv) {
+                    $levelStatus[$rk] = $apv['status']; // 'approved' or 'rejected'
+                    if ($apv['status'] === 'rejected') {
+                        $anyRejected = true;
+                        $rejectNote  = $apv['rejection_note'] ?? '';
+                        $allApproved = false;
+                    }
+                } else {
+                    $levelStatus[$rk] = 'pending';
+                    $allApproved      = false;
+                }
+            }
+            if ($anyRejected)  $finalStatus = 'Rejected';
+            elseif ($allApproved) $finalStatus = 'Approved';
+
+            // Status role saya sendiri
+            $myStatus   = $myRoleDB ? ($levelStatus[$myRoleDB] ?? 'pending') : 'pending';
+
+            // Cek prerequisite (level sebelumnya harus approved)
+            $prereqOk      = true;
+            $anyPrevReject = false;
+            for ($pi = 0; $pi < $myIdx; $pi++) {
+                $prevKey = $levels[$pi]['role_key'];
+                $prevSt  = $levelStatus[$prevKey] ?? 'pending';
+                if ($prevSt === 'rejected') { $anyPrevReject = true; break; }
+                if ($prevSt !== 'approved') { $prereqOk = false; }
+            }
+
+            $badgeClass = ($finalStatus==='Approved') ? 'badge-approved'
+                        : (($finalStatus==='Rejected') ? 'badge-rejected' : 'badge-pending');
+            $badgeIcon  = ($finalStatus==='Approved') ? 'fa-circle-check'
+                        : (($finalStatus==='Rejected') ? 'fa-circle-xmark' : 'fa-clock');
+        ?>
+            <tr>
+                <td class="text-center"><?php echo $no++; ?></td>
+                <td class="fw-bold"><?php echo htmlspecialchars($row['engine_no'] ?? '-'); ?></td>
+                <td><?php echo htmlspecialchars($row['engine_model'] ?? '-'); ?></td>
+                <td><?php echo htmlspecialchars($row['operator_name'] ?? '-'); ?></td>
+                <td><?php
+                    $tgl = $row['test_date'] ?? $row['created_at'] ?? null;
+                    echo $tgl ? date('d/m/Y', strtotime($tgl)) : '-';
+                ?></td>
+
+                <!-- Pipeline -->
+                <td>
+                    <div class="d-flex align-items-center flex-wrap gap-1">
+                    <?php foreach ($levels as $i => $lvl):
+                        $st  = $levelStatus[$lvl['role_key']] ?? 'pending';
+                        $lbl = $lvl['label'];
+                        $cls = ($st==='approved') ? 'done' : (($st==='rejected') ? 'reject' : 'active');
+                        $ico = ($st==='approved') ? 'fa-check' : (($st==='rejected') ? 'fa-xmark' : 'fa-hourglass-half');
+                        echo '<span class="pipeline-step '.$cls.'"><i class="fa-solid '.$ico.' me-1"></i>'.$lbl.'</span>';
+                        if ($i < count($levels)-1) echo '<span class="pipeline-arrow"><i class="fa-solid fa-chevron-right"></i></span>';
+                    endforeach; ?>
+                    </div>
+                    <?php if ($rejectNote): ?>
+                        <div class="mt-1 text-danger" style="font-size:10px;">
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i><?php echo htmlspecialchars($rejectNote); ?>
+                        </div>
+                    <?php endif; ?>
+                </td>
+
+                <!-- Status akhir -->
+                <td class="text-center">
+                    <span class="badge <?php echo $badgeClass; ?> px-2 py-1" style="font-size:11px;">
+                        <i class="fa-solid <?php echo $badgeIcon; ?> me-1"></i><?php echo $finalStatus; ?>
+                    </span>
+                </td>
+
+                <!-- Tombol aksi -->
+                <?php if ($canApprove): ?>
+                <td class="text-center">
+                    <?php if ($myStatus === 'approved'): ?>
+                        <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
+                            <i class="fa-solid fa-check me-1"></i>Sudah Approved
+                        </span>
+                    <?php elseif ($myStatus === 'rejected'): ?>
+                        <span class="badge badge-rejected px-2 py-1" style="font-size:10px;">
+                            <i class="fa-solid fa-xmark me-1"></i>Sudah Rejected
+                        </span>
+                    <?php elseif ($anyPrevReject): ?>
+                        <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
+                            <i class="fa-solid fa-ban me-1"></i>Ada yang Direject
+                        </span>
+                    <?php elseif (!$prereqOk): ?>
+                        <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
+                            <i class="fa-solid fa-lock me-1"></i>Tunggu Level Sebelumnya
+                        </span>
+                    <?php else: ?>
+                        <div class="d-flex gap-1 justify-content-center">
+                            <button class="btn btn-success btn-sm fw-bold"
+                                    onclick="doApprove(<?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>')">
+                                <i class="fa-solid fa-check me-1"></i>Approve
+                            </button>
+                            <button class="btn btn-danger btn-sm fw-bold"
+                                    onclick="openRejectModal(<?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>')">
+                                <i class="fa-solid fa-xmark me-1"></i>Reject
+                            </button>
+                        </div>
+                    <?php endif; ?>
+                </td>
+                <?php endif; ?>
+            </tr>
+        <?php endwhile; ?>
+        <?php if (!$found): ?>
+            <tr>
+                <td colspan="<?php echo $canApprove ? 8 : 7; ?>" class="text-center text-muted py-5">
+                    <i class="fa-solid fa-inbox fa-2x mb-2 d-block"></i>
+                    Belum ada data yang disubmit operator.
+                </td>
+            </tr>
+        <?php endif; ?>
+        </tbody>
+    </table>
+    </div>
+<?php
+} // end renderApprovalTable
+?>
+
+<!-- ---- TAB: TEST RUNNING APPROVAL (Foreman only) ---- -->
+<div id="sec-test-running" class="module-section active-module">
+    <div class="container-fluid pb-3">
+        <div class="card shadow-sm">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#343a40;">
+                <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-clipboard-check me-2"></i>APPROVAL – TEST RUNNING</h5>
+                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman</strong></span>
+            </div>
+            <div class="card-body p-3">
+                <?php renderApprovalTable('result_test_run', 'Test_Running', [['role_key'=>'Foreman','label'=>'Foreman']], $role, $koneksi); ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ---- TAB: FINAL INSPECTION APPROVAL (Foreman → Supervisor) ---- -->
+<div id="sec-final-inspection" class="module-section">
+    <div class="container-fluid pb-3">
+        <div class="card shadow-sm">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#157347;">
+                <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-magnifying-glass-chart me-2"></i>APPROVAL – FINAL INSPECTION</h5>
+                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor</strong></span>
+            </div>
+            <div class="card-body p-3">
+                <?php renderApprovalTable('final_inspection_data', 'Final_Inspection', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor']], $role, $koneksi); ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ---- TAB: PACKING APPROVAL (Foreman → Supervisor → Asisten Manager) ---- -->
+<div id="sec-packing" class="module-section">
+    <div class="container-fluid pb-3">
+        <div class="card shadow-sm">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#997404;">
+                <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-box-archive me-2"></i>APPROVAL – PACKING</h5>
+                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor → Asisten Manager</strong></span>
+            </div>
+            <div class="card-body p-3">
+                <?php renderApprovalTable('packing_data', 'Packing', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor'],['role_key'=>'Asst_Manager','label'=>'Asst. Manager']], $role, $koneksi); ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL REJECT -->
+<div class="modal fade" id="modalRejectReason" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="fa-solid fa-triangle-exclamation me-2"></i>Alasan Penolakan</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-2" style="font-size:13px;">Isi alasan penolakan. Catatan ini akan terlihat oleh operator.</p>
+                <textarea id="rejectReasonText" class="form-control" rows="4" placeholder="Contoh: Output melebihi toleransi, perlu pengecekan ulang..."></textarea>
+                <div id="rejectReasonError" class="text-danger mt-1" style="font-size:12px; display:none;">
+                    <i class="fa-solid fa-circle-exclamation me-1"></i>Alasan tidak boleh kosong.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-danger fw-bold" onclick="submitReject()">
+                    <i class="fa-solid fa-xmark me-1"></i>Konfirmasi Reject
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php else: ?>
+<!-- Role tidak dikenali -->
+<div class="container-fluid pt-3">
+    <div class="alert alert-danger">
+        Role <strong><?php echo htmlspecialchars($_SESSION['role']); ?></strong> tidak dikenali. Hubungi administrator.
+    </div>
+</div>
+<?php endif; ?>
+
+
+<!-- ===================================================
+     SCRIPTS
+=================================================== -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// --- Auto-switch tab dari URL hash atau query param ---
+$(document).ready(function(){
+    // Restore tab approval setelah reload (approve/reject)
+    var savedTab = sessionStorage.getItem('activeApprovalTab');
+    if (savedTab && document.getElementById('btn-' + savedTab)) {
+        switchModule(savedTab);
+        sessionStorage.removeItem('activeApprovalTab');
+    }
+
+    // Cek hash URL e.g. #final-inspection
+    var hash = window.location.hash.replace('#','');
+    if (hash && document.getElementById('btn-' + hash)) {
+        switchModule(hash);
+    }
+    // Cek query param sukses
+    var urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('fi_success') === '1') {
+        showToast('success', 'Data Final Inspection berhasil disimpan!');
+        // Bersihkan URL tanpa reload
+        history.replaceState(null, '', window.location.pathname);
+    }
+    if (urlParams.get('tr_success') === '1') {
+        showToast('success', 'Data Test Running berhasil disimpan!');
+        history.replaceState(null, '', window.location.pathname);
+    }
+    if (urlParams.get('pk_success') === '1') {
+        showToast('success', 'Data Packing berhasil disimpan!');
+        history.replaceState(null, '', window.location.pathname);
+    }
+});
+
+// --- Tab switching (sama untuk operator & approver) ---
+function switchModule(name) {
+    document.querySelectorAll('.qc-nav-btn, .approval-nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.module-section').forEach(s => s.classList.remove('active-module'));
+    document.getElementById('btn-' + name).classList.add('active');
+    document.getElementById('sec-' + name).classList.add('active-module');
+}
+
+<?php if($is_approver): ?>
+// --- Approve: parameter (id, stage, role) -> POST ke proses_approve.php ---
+function doApprove(recordId, stage, role) {
+    if (!confirm('Yakin ingin APPROVE data ini?')) return;
+    $.post('proses_approve.php',
+        { action:'approve', id:recordId, stage:stage, role:role },
+        function(res) {
+            if (res.status === 'ok') {
+                showToast('success','Data berhasil di-approve!');
+                setTimeout(()=>reloadKeepTab(), 1200);
+            } else showToast('danger','Gagal: '+(res.message||'error'));
+        }, 'json'
+    ).fail(function(xhr, status, error) {
+        showToast('danger', 'Koneksi gagal: ' + xhr.status + ' ' + xhr.responseText.substring(0,100));
+    });
+}
+
+// --- Reject modal ---
+var _ri=0, _rs='', _rr='', _modal=null;
+function openRejectModal(recordId, stage, role) {
+    _ri=recordId; _rs=stage; _rr=role;
+    document.getElementById('rejectReasonText').value='';
+    document.getElementById('rejectReasonError').style.display='none';
+    if(!_modal) _modal=new bootstrap.Modal(document.getElementById('modalRejectReason'));
+    _modal.show();
+}
+function submitReject() {
+    var reason = document.getElementById('rejectReasonText').value.trim();
+    if (!reason) { document.getElementById('rejectReasonError').style.display='block'; return; }
+    document.getElementById('rejectReasonError').style.display='none';
+    $.post('proses_approve.php',
+        { action:'reject', id:_ri, stage:_rs, role:_rr, reason:reason },
+        function(res) {
+            _modal.hide();
+            if (res.status==='ok') {
+                showToast('warning','Data berhasil di-reject.');
+                setTimeout(()=>reloadKeepTab(), 1200);
+            } else showToast('danger','Gagal: '+(res.message||'error'));
+        }, 'json'
+    ).fail(()=>{ _modal.hide(); showToast('danger','Koneksi gagal.'); });
+}
+
+// --- Reload tapi tetap di tab yang sama ---
+function reloadKeepTab() {
+    // Cari tab aktif
+    var activeBtn = document.querySelector('.approval-nav-btn.active');
+    if (activeBtn) {
+        var id = activeBtn.id.replace('btn-', '');
+        sessionStorage.setItem('activeApprovalTab', id);
+    }
+    location.reload();
+}
+
+// --- Toast ---
+function showToast(type, msg) {
+    var bg = type==='success'?'#198754':type==='warning'?'#ffc107':'#dc3545';
+    var tc = type==='warning'?'#212529':'#fff';
+    var d  = document.createElement('div');
+    d.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;padding:12px 20px;border-radius:6px;font-weight:600;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.2);';
+    d.style.backgroundColor=bg; d.style.color=tc;
+    d.innerHTML='<i class="fa-solid fa-'+(type==='success'?'circle-check':type==='warning'?'triangle-exclamation':'circle-xmark')+' me-2"></i>'+msg;
+    document.body.appendChild(d);
+    setTimeout(()=>{ d.style.opacity='0'; setTimeout(()=>d.remove(),300); },2500);
+}
+<?php endif; ?>
+
+<?php if($is_operator): ?>
+// --- AJAX load spec engine model ---
+$(document).ready(function(){
+    $('#engine_model').change(function(){
+        var model = $(this).val();
+        if(model){
+            $.ajax({
+                url:'ambil_master_spec.php', type:'POST', data:{engine_model:model}, dataType:'json',
+                success:function(r){
+                    $('#cont_power').val(r.cont_power||'');
+                    $('#max_power').val(r.max_power||'');
+                    $('#lbl_hi_idle').val(r.hi_idle||'');
+                    $('#std_output_lbl').text(r.output||'-');
+                    $('#std_torque_lbl').text(r.torque||'-');
+                    $('#std_load_lbl').text(r.load||'-');
+                    $('#std_fuel_mm3_lbl').text(r.fuel_mm3||'-');
+                    $('#std_fuel_gkwh_lbl').text(r.fuel_gkwh||'-');
+                    $('#std_sd_lbl').text(r.sd_bsu||'-');
+                    $('#lbl_ex_r1').text(r.exhaust||'-');
+                    $('#lbl_oil_r1').text(r.oil_temp||'-');
+                    $('#lbl_lo_r1').text(r.lo||'-');
+                    $('#std_correct_co_lbl').text(r.correct_co||'-');
+                    $('#fic_standard').val(r.fic||'');
+                    $('#lbl_speed1').text(r.speed1||'-');
+                    $('#lbl_speed2').text(r.speed2||'-');
+                    $('#lbl_speed3').text(r.speed3||'-');
+                },
+                error:function(){ console.log('Gagal memuat spesifikasi.'); }
+            });
+        } else {
+            $('#cont_power,#max_power,#lbl_hi_idle,#fic_standard').val('');
+            $('#std_output_lbl,#std_torque_lbl,#std_load_lbl,#std_fuel_mm3_lbl,#std_fuel_gkwh_lbl,#std_sd_lbl,#lbl_ex_r1,#lbl_oil_r1,#lbl_lo_r1,#std_correct_co_lbl,#lbl_speed1,#lbl_speed2,#lbl_speed3').text('-');
+        }
+    });
+});
+<?php endif; ?>
+
+<?php if($is_operator): ?>
+// -------------------------------------------------------
+// AJAX: Load checklist Final Inspection sesuai model
+// -------------------------------------------------------
+$('#fi_engine_model').change(function(){
+    var model = $(this).val();
+    var container = $('#fi_checklist_container');
+    var emptyMsg  = $('#fi_empty_msg');
+    var submitBtn = $('#btn_fi_submit');
+    var counter   = $('#fi_item_count');
+
+    if (!model) {
+        container.html('<div class="text-center text-muted py-5" id="fi_empty_msg"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block text-success opacity-50"></i>Pilih Engine Model terlebih dahulu.</div>');
+        submitBtn.prop('disabled', true);
+        counter.text('Pilih Engine Model untuk memuat checklist');
+        return;
+    }
+
+    container.html('<div class="text-center py-5"><div class="spinner-border text-success" role="status"></div><div class="mt-2 text-muted" style="font-size:12px;">Memuat checklist...</div></div>');
+    submitBtn.prop('disabled', true);
+
+    $.ajax({
+        url: 'ambil_checklist_fi.php',
+        type: 'POST',
+        data: { engine_model: model },
+        dataType: 'json',
+        success: function(items) {
+            if (!items || items.length === 0) {
+                container.html('<div class="alert alert-warning m-2">Tidak ada checklist untuk model ini.</div>');
+                counter.text('0 item');
+                return;
+            }
+
+            // Clone template tabel
+            var tpl   = document.getElementById('tpl_fi_table');
+            var clone = tpl.content.cloneNode(true);
+            var tbody = clone.querySelector('#fi_tbody');
+
+            items.forEach(function(item, i) {
+                var param = item.parameter || '';
+                var row = document.createElement('tr');
+                row.innerHTML =
+                    '<td class="text-center fw-bold text-muted">' + (i+1) + '</td>' +
+                    '<td class="text-start fw-semibold">' +
+                        '<input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">' +
+                        '<input type="hidden" name="parameter[]" value="' + escHtml(param) + '">' +
+                        escHtml(item.item_name) +
+                    '</td>' +
+                    '<td class="text-start text-muted" style="font-size:11px; white-space:pre-line;">' + escHtml(param) + '</td>' +
+                    '<td>' +
+                        '<select name="result[]" class="form-select form-select-sm text-center fw-bold fi-result-sel" style="min-width:70px;">' +
+                            '<option value="OK" style="color:green;">OK</option>' +
+                            '<option value="NG" style="color:red;">NG</option>' +
+                        '</select>' +
+                    '</td>' +
+                    '<td>' +
+                        '<input type="file" name="foto[' + i + ']" accept="image/*" capture="environment" ' +
+                        'class="form-control form-control-sm fi-foto" style="font-size:10px; padding:2px 4px;">' +
+                        '<div class="fi-preview mt-1" style="display:none;">' +
+                            '<img src="" style="max-width:80px; max-height:60px; border-radius:4px; border:1px solid #dee2e6;">' +
+                        '</div>' +
+                    '</td>';
+                tbody.appendChild(row);
+            });
+
+            container.empty().append(clone);
+            counter.text(items.length + ' item checklist');
+            submitBtn.prop('disabled', false);
+
+            // Color coding hasil OK/NG
+            $(document).on('change', '.fi-result-sel', function(){
+                $(this).css('color', $(this).val() === 'NG' ? '#dc3545' : '#198754');
+            });
+
+            // Preview foto
+            $(document).on('change', '.fi-foto', function(){
+                var file = this.files[0];
+                var preview = $(this).siblings('.fi-preview');
+                if (file) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.find('img').attr('src', e.target.result);
+                        preview.show();
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.hide();
+                }
+            });
+        },
+        error: function() {
+            container.html('<div class="alert alert-danger m-2">Gagal memuat checklist.</div>');
+        }
+    });
+});
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+
+function resetFIForm() {
+    if (!confirm('Reset form Final Inspection?')) return;
+    $('#fi_engine_model').val('').trigger('change');
+    $('input[name="engine_no"]', '#form-fi').val('');
+    $('textarea[name="noted"]', '#form-fi').val('');
+}
+<?php endif; ?>
+</script>
+</body>
+</html>
