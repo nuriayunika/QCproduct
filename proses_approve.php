@@ -1,7 +1,18 @@
 <?php
+ob_start();
+error_reporting(0);
+ini_set("display_errors", 0);
 // File: proses_approve.php
 session_start();
 include 'koneksi.php';
+
+// Notifikasi email via Brevo API (pakai cURL, tidak butuh vendor/autoload)
+if (file_exists(__DIR__ . '/kirim_notif_email.php')) {
+    include_once 'kirim_notif_email.php';
+    define('EMAIL_ENABLED', true);
+} else {
+    define('EMAIL_ENABLED', false);
+}
 
 // Selalu return JSON
 header('Content-Type: application/json');
@@ -62,7 +73,13 @@ if ($action === 'approve') {
             VALUES ($test_run_id, '$stage_esc', '$role_esc', '$approved_by_esc', 'approved', NOW())";
 
     if (mysqli_query($koneksi, $sql)) {
-        echo json_encode(['status' => 'ok']);
+        // Kirim notifikasi email
+        $email_debug = ['enabled' => EMAIL_ENABLED, 'stage' => $stage, 'role' => $role_approve];
+        if (EMAIL_ENABLED) {
+            $email_result = notifApprovalAction($koneksi, 'approve', $stage, $role_approve, $test_run_id, $approved_by);
+            $email_debug['result'] = $email_result;
+        }
+        echo json_encode(['status' => 'ok', 'email_debug' => $email_debug]);
     } else {
         echo json_encode(['status' => 'error', 'message' => mysqli_error($koneksi)]);
     }
@@ -78,6 +95,14 @@ if ($action === 'approve') {
             VALUES ($test_run_id, '$stage_esc', '$role_esc', '$approved_by_esc', 'rejected', '$reason_esc', NOW())";
 
     if (mysqli_query($koneksi, $sql)) {
+        // Kirim notifikasi email ke operator
+        if (EMAIL_ENABLED) {
+            try {
+                notifApprovalAction($koneksi, 'reject', $stage, $role_approve, $test_run_id, $approved_by, $reason);
+            } catch (Exception $e) {
+                error_log("Email notif error: " . $e->getMessage());
+            }
+        }
         echo json_encode(['status' => 'ok']);
     } else {
         echo json_encode(['status' => 'error', 'message' => mysqli_error($koneksi)]);

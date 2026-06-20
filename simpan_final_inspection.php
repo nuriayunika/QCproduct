@@ -55,5 +55,7 @@ foreach ($items as $i => $item_name) {
     mysqli_query($koneksi, $sql_item);
 }
 
+// Tidak ada notifikasi email saat submit (operator tidak punya email)
+
 header("location:index.php?fi_success=1#final-inspection");
 exit();

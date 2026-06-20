@@ -51,30 +51,236 @@ $is_approver = (
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
-        .module-section { display: none; }
-        .module-section.active-module { display: block; }
-        .qc-nav-btn.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
-        .approval-nav-btn.active { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+        /* =============================================
+           GLOBAL
+        ============================================= */
+        :root {
+            --maroon:     #7B1D1D;
+            --maroon-dk:  #5a1414;
+            --maroon-lt:  #a83232;
+            --maroon-xlt: #f5e6e6;
+            --gray-dk:    #3d3d3d;
+            --gray-md:    #6c757d;
+            --gray-lt:    #f0f0f0;
+            --gray-bd:    #d0d0d0;
+            --white:      #ffffff;
+        }
 
-        /* Pipeline status pills */
+        body { background-color: #ebebeb; font-family: 'Segoe UI', sans-serif; }
+
+        .module-section      { display: none; }
+        .module-section.active-module { display: block; }
+
+        /* =============================================
+           TOP NAVBAR
+        ============================================= */
+        .top-navbar {
+            background: linear-gradient(135deg, var(--maroon-dk) 0%, var(--maroon) 60%, var(--maroon-lt) 100%);
+            border-radius: 10px;
+            padding: 10px 18px;
+            box-shadow: 0 4px 15px rgba(123,29,29,0.25);
+            margin: 12px 12px 0 12px;
+        }
+
+        /* Nav buttons operator */
+        .qc-nav-btn {
+            font-size: 12px; font-weight: 600; border-radius: 6px;
+            padding: 6px 16px; border: 1.5px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
+            transition: all 0.2s ease; letter-spacing: 0.3px;
+        }
+        .qc-nav-btn:hover { background: rgba(255,255,255,0.22); color: #fff; border-color: rgba(255,255,255,0.5); }
+        .qc-nav-btn.active {
+            background: #fff; color: var(--maroon); border-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Nav buttons approver */
+        .approval-nav-btn {
+            font-size: 12px; font-weight: 600; border-radius: 6px;
+            padding: 6px 16px; border: 1.5px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85);
+            transition: all 0.2s ease;
+        }
+        .approval-nav-btn:hover { background: rgba(255,255,255,0.22); color: #fff; }
+        .approval-nav-btn.active { background: #fff; color: var(--maroon); border-color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+
+        /* User info pill */
+        .user-pill {
+            background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 8px; padding: 5px 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .user-pill .user-name { font-size: 12px; font-weight: 700; color: #fff; }
+        .user-pill .role-badge {
+            background: rgba(0,0,0,0.25); color: #fff; font-size: 9px;
+            font-weight: 700; padding: 2px 7px; border-radius: 4px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .btn-logout {
+            background: rgba(255,255,255,0.15); border: 1.5px solid rgba(255,255,255,0.4);
+            color: #fff; font-size: 11px; font-weight: 700; border-radius: 6px;
+            padding: 6px 14px; transition: all 0.2s;
+        }
+        .btn-logout:hover { background: #fff; color: var(--maroon); }
+
+        /* =============================================
+           TEST RUNNING FORM
+        ============================================= */
+        .tr-header-card {
+            background: linear-gradient(135deg, #fff 0%, #fdf5f5 100%);
+            border: none; border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(123,29,29,0.1);
+            border-left: 4px solid var(--maroon);
+        }
+        .tr-section-title {
+            font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+            text-transform: uppercase; color: var(--maroon);
+            border-bottom: 2px solid var(--maroon-xlt);
+            padding-bottom: 5px; margin-bottom: 10px;
+        }
+        .tr-label {
+            font-size: 11px; font-weight: 600; color: var(--gray-dk);
+            display: flex; align-items: center;
+        }
+        .tr-input {
+            font-size: 12px; border-radius: 6px;
+            border: 1.5px solid var(--gray-bd);
+            transition: border-color 0.2s, box-shadow 0.2s;
+            padding: 5px 10px; height: 32px;
+        }
+        .tr-input:focus {
+            border-color: var(--maroon); box-shadow: 0 0 0 3px rgba(123,29,29,0.1);
+            outline: none;
+        }
+        .tr-input.readonly-field {
+            background: var(--gray-lt); color: var(--gray-md);
+            font-weight: 600; cursor: default;
+        }
+        .tr-select {
+            font-size: 12px; border-radius: 6px; height: 32px;
+            border: 1.5px solid var(--maroon); font-weight: 700;
+            color: var(--gray-dk); padding: 0 8px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .tr-select:focus { border-color: var(--maroon-dk); box-shadow: 0 0 0 3px rgba(123,29,29,0.1); }
+
+        /* Visual checklist section */
+        .checklist-card {
+            border: none; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            background: #fff;
+        }
+        .checklist-header {
+            background: linear-gradient(90deg, var(--maroon) 0%, var(--maroon-lt) 100%);
+            color: #fff; font-size: 11px; font-weight: 700;
+            letter-spacing: 1px; text-transform: uppercase;
+            padding: 8px 14px; border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .checklist-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 10px; border-bottom: 1px solid #f5f5f5;
+            transition: background 0.15s;
+        }
+        .checklist-item:hover { background: #fdf5f5; }
+        .checklist-item:last-child { border-bottom: none; }
+        .checklist-item-name { font-size: 11px; font-weight: 600; color: var(--gray-dk); max-width: 70%; }
+        .checklist-select {
+            font-size: 11px; font-weight: 700; border-radius: 5px;
+            border: 1.5px solid var(--gray-bd); padding: 2px 6px;
+            min-width: 75px; text-align: center; cursor: pointer;
+        }
+
+        /* Performance table */
+        .perf-card {
+            border: none; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            overflow: hidden;
+        }
+        .perf-card-header {
+            background: linear-gradient(90deg, var(--maroon-dk) 0%, var(--maroon) 100%);
+            color: #fff; font-size: 12px; font-weight: 700;
+            letter-spacing: 0.8px; padding: 10px 16px;
+        }
+        .perf-table { font-size: 11px; }
+        .perf-table thead tr th {
+            background-color: var(--gray-dk) !important; color: #fff !important;
+            font-size: 10px; font-weight: 700; vertical-align: middle;
+            text-align: center; padding: 6px 4px; border-color: #555;
+        }
+        .perf-table thead tr th.th-data1 { background-color: var(--maroon) !important; }
+        .perf-table thead tr th.th-data2 { background-color: #1a5c3a !important; }
+        .perf-table tbody td { vertical-align: middle; padding: 3px; }
+        .perf-table .form-control {
+            font-size: 11px; padding: 2px 4px; height: 28px;
+            border-radius: 4px; border: 1px solid #ccc; text-align: center;
+        }
+        .perf-table .form-control:focus { border-color: var(--maroon); box-shadow: 0 0 0 2px rgba(123,29,29,0.1); }
+        .std-label {
+            display: block; font-size: 9px; font-weight: 700;
+            color: #ffc107; margin-top: 2px;
+        }
+
+        /* Bottom cards */
+        .bottom-card {
+            border: none; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            overflow: hidden;
+        }
+        .bottom-card-header {
+            background: linear-gradient(90deg, var(--maroon) 0%, var(--maroon-lt) 100%);
+            color: #fff; font-size: 11px; font-weight: 700;
+            text-align: center; padding: 8px;
+        }
+        .bottom-table { font-size: 11px; }
+        .bottom-table td, .bottom-table th {
+            padding: 6px 8px; vertical-align: middle;
+        }
+        .bottom-table th {
+            background-color: #f0f0f0; color: var(--gray-dk);
+            font-weight: 700; font-size: 10px;
+        }
+        .bottom-table .form-control {
+            font-size: 11px; height: 28px; padding: 2px 6px;
+            border-radius: 5px; border: 1.5px solid #ccc; text-align: center;
+        }
+        .bottom-table .input-group-text {
+            font-size: 10px; font-weight: 700; background: #e8e8e8;
+            color: var(--gray-dk); border-color: #ccc;
+        }
+
+        /* Submit button */
+        .btn-submit-tr {
+            background: linear-gradient(135deg, var(--maroon) 0%, var(--maroon-lt) 100%);
+            color: #fff; font-weight: 700; font-size: 14px;
+            border: none; border-radius: 10px; padding: 14px 0;
+            width: 100%; letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(123,29,29,0.3);
+            transition: all 0.2s; cursor: pointer;
+        }
+        .btn-submit-tr:hover {
+            background: linear-gradient(135deg, var(--maroon-dk) 0%, var(--maroon) 100%);
+            box-shadow: 0 6px 20px rgba(123,29,29,0.4);
+            transform: translateY(-1px);
+        }
+
+        /* =============================================
+           APPROVAL DASHBOARD
+        ============================================= */
         .pipeline-step { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; padding:3px 8px; border-radius:20px; border:1px solid #dee2e6; background:#f8f9fa; color:#6c757d; white-space:nowrap; }
         .pipeline-step.done   { background:#d1e7dd; color:#0a3622; border-color:#a3cfbb; }
         .pipeline-step.active { background:#fff3cd; color:#664d03; border-color:#ffc107; }
         .pipeline-step.reject { background:#f8d7da; color:#58151c; border-color:#f1aeb5; }
         .pipeline-arrow { color:#adb5bd; font-size:9px; margin:0 2px; }
-
-        /* Approval table */
-        .approval-table th { font-size:11px; vertical-align:middle; background-color:#343a40; color:#fff; }
+        .approval-table th { font-size:11px; vertical-align:middle; background:linear-gradient(90deg,#5a1414,#7B1D1D); color:#fff; }
         .approval-table td { font-size:12px; vertical-align:middle; }
-        .approval-table tr:hover td { background-color:#f0f4ff; }
-
-        /* Status badges */
+        .approval-table tr:hover td { background-color:#fdf5f5; transition: background 0.15s; }
         .badge-pending  { background-color:#ffc107; color:#212529; }
         .badge-approved { background-color:#198754; color:#fff; }
         .badge-rejected { background-color:#dc3545; color:#fff; }
         .badge-waiting  { background-color:#6c757d; color:#fff; }
-
-        #modalRejectReason .modal-header { background-color:#dc3545; color:#fff; }
+        #modalRejectReason .modal-header { background: linear-gradient(90deg, var(--maroon-dk), var(--maroon)); color:#fff; }
     </style>
 </head>
 <body>
@@ -82,50 +288,46 @@ $is_approver = (
 <!-- ===================================================
      TOP NAVBAR (shared semua role)
 =================================================== -->
-<div class="container-fluid pt-3">
-    <div class="card-body bg-white p-3 border rounded shadow-sm mb-2">
-        <div class="d-flex justify-content-between align-items-center w-100 flex-nowrap">
+<div class="top-navbar d-flex justify-content-between align-items-center flex-nowrap">
 
-            <div class="d-flex gap-2 justify-content-start flex-wrap align-items-center">
-                <?php if($is_operator): ?>
-                    <!-- Tombol nav OPERATOR - semua tab kelihatan -->
-                    <button type="button" class="btn btn-light qc-nav-btn active" id="btn-test-running" onclick="switchModule('test-running')">Test Running</button>
-                    <button type="button" class="btn btn-light qc-nav-btn" id="btn-final-inspection" onclick="switchModule('final-inspection')">Final Inspection</button>
-                    <button type="button" class="btn btn-light qc-nav-btn" id="btn-packing" onclick="switchModule('packing')">Packing</button>
-                <?php elseif($is_approver): ?>
-                    <!-- Tombol nav APPROVER -->
-                    <button type="button" class="btn btn-light approval-nav-btn active" id="btn-test-running"     onclick="switchModule('test-running')">
-                        <i class="fa-solid fa-clipboard-check me-1"></i>Test Running
-                    </button>
-                    <button type="button" class="btn btn-light approval-nav-btn"        id="btn-final-inspection" onclick="switchModule('final-inspection')">
-                        <i class="fa-solid fa-magnifying-glass-chart me-1"></i>Final Inspection
-                    </button>
-                    <button type="button" class="btn btn-light approval-nav-btn"        id="btn-packing"          onclick="switchModule('packing')">
-                        <i class="fa-solid fa-box-archive me-1"></i>Packing
-                    </button>
-                <?php endif; ?>
-            </div>
-
-            <div class="d-flex align-items-center gap-2 ms-auto text-end">
-                <div class="bg-light border rounded px-3 py-1 d-flex align-items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-user-gear text-secondary" style="font-size:12px;"></i>
-                    <span class="fw-bold text-dark text-nowrap" style="font-size:12px; letter-spacing:0.3px;">
-                        <?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>
-                    </span>
-                    <span class="badge bg-dark text-white text-uppercase px-2 py-1" style="font-size:9px; font-weight:700; letter-spacing:0.5px;">
-                        <?php echo str_replace('_', ' ', $_SESSION['role']); ?>
-                    </span>
-                </div>
-                <a href="logout.php"
-                   class="btn btn-danger btn-sm fw-bold shadow-sm px-3 d-flex align-items-center justify-content-center text-nowrap"
-                   style="font-size:11px; border-radius:4px; letter-spacing:0.5px; padding-top:7px; padding-bottom:7px;"
-                   onclick="return confirm('Apakah Anda yakin ingin keluar dari sistem?')">
-                    <i class="fa-solid fa-right-from-bracket me-2" style="font-size:11px;"></i> LOG OUT
-                </a>
-            </div>
-
-        </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <?php if($is_operator): ?>
+            <i class="fa-solid fa-industry text-white opacity-75 me-1" style="font-size:16px;"></i>
+            <button type="button" class="btn qc-nav-btn active" id="btn-test-running" onclick="switchModule('test-running')">
+                <i class="fa-solid fa-gauge-high me-1"></i>Test Running
+            </button>
+            <button type="button" class="btn qc-nav-btn" id="btn-final-inspection" onclick="switchModule('final-inspection')">
+                <i class="fa-solid fa-clipboard-list me-1"></i>Final Inspection
+            </button>
+            <button type="button" class="btn qc-nav-btn" id="btn-packing" onclick="switchModule('packing')">
+                <i class="fa-solid fa-box me-1"></i>Packing
+            </button>
+        <?php elseif($is_approver): ?>
+            <i class="fa-solid fa-check-double text-white opacity-75 me-1" style="font-size:16px;"></i>
+            <button type="button" class="btn approval-nav-btn active" id="btn-test-running" onclick="switchModule('test-running')">
+                <i class="fa-solid fa-gauge-high me-1"></i>Test Running
+            </button>
+            <button type="button" class="btn approval-nav-btn" id="btn-final-inspection" onclick="switchModule('final-inspection')">
+                <i class="fa-solid fa-clipboard-list me-1"></i>Final Inspection
+            </button>
+            <button type="button" class="btn approval-nav-btn" id="btn-packing" onclick="switchModule('packing')">
+                <i class="fa-solid fa-box me-1"></i>Packing
+            </button>
+        <?php endif; ?>
     </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <div class="user-pill">
+            <i class="fa-solid fa-user-gear text-white opacity-75" style="font-size:13px;"></i>
+            <span class="user-name"><?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?></span>
+            <span class="role-badge"><?php echo str_replace('_', ' ', $_SESSION['role']); ?></span>
+        </div>
+        <a href="logout.php" class="btn btn-logout"
+           onclick="return confirm('Yakin ingin keluar?')">
+            <i class="fa-solid fa-right-from-bracket me-1"></i>LOG OUT
+        </a>
+    </div>
+
 </div>
 
 
@@ -137,25 +339,29 @@ $is_approver = (
 <!-- ---- TAB: TEST RUNNING ---- -->
 <div id="sec-test-running" class="module-section active-module">
     <div class="container-fluid pb-3">
-        <form action="simpan_test_run.php" method="POST">
+        <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)">
 
-            <div class="card mb-3 shadow-sm">
-                <div class="card-header card-header-custom py-2">
-                    <h5 class="card-title m-0 text-center fw-bold">TEST RUNNING</h5>
+            <div class="card mb-3 tr-header-card">
+                <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
+                    <div class="d-flex align-items-center gap-2 py-2 px-1">
+                        <i class="fa-solid fa-gauge-high text-white" style="font-size:18px;"></i>
+                        <h5 class="card-title m-0 fw-bold text-white" style="letter-spacing:1px;">TEST RUNNING</h5>
+                        <span class="ms-auto badge" style="background:rgba(255,255,255,0.2); color:#fff; font-size:10px;">Full Load</span>
+                    </div>
                 </div>
-                <div class="card-body bg-header-blue p-3">
+                <div class="card-body p-3" style="background:linear-gradient(135deg,#fff 0%,#fdf5f5 100%);">
                     <div class="row g-2">
                         <div class="col-md-3">
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Test Name</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Test Name</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="test_name" class="form-control form-control-sm bg-light fw-bold text-secondary" value="Full load" readonly>
+                                    <input type="text" name="test_name" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="Full load" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Engine Model</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
                                 <div class="col-sm-7">
-                                    <select name="engine_model" id="engine_model" class="form-select form-select-sm fw-bold text-dark border-primary shadow-sm" required>
+                                    <select name="engine_model" id="engine_model" class="form-select form-select-sm" style="font-size:12px;" style="font-size:12px; font-weight:500; border-color:#7B1D1D;" required>
                                         <option value="">- Pilih Model -</option>
                                         <?php 
                                         $q_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec");
@@ -167,96 +373,97 @@ $is_approver = (
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine No.</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="engine_no" class="form-control form-control-sm bg-white" required placeholder="Ketik No. Mesin...">
+                                    <input type="text" name="engine_no" class="form-control form-control-sm" style="font-size:12px;" required placeholder="Ketik No. Mesin...">
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Cont. Power</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Cont. Power</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="cont_power" id="cont_power" class="form-control form-control-sm bg-light text-secondary fw-bold" readonly placeholder="Menunggu model...">
+                                    <input type="text" name="cont_power" id="cont_power" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" readonly placeholder="Menunggu model...">
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Max Power</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Max Power</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="max_power" id="max_power" class="form-control form-control-sm bg-light text-secondary fw-bold" readonly placeholder="Menunggu model...">
+                                    <input type="text" name="max_power" id="max_power" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" readonly placeholder="Menunggu model...">
                                 </div>
                             </div>
                         </div>
 
                         <div class="col-md-3">
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Test Date</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Test Date</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control form-control-sm bg-light fw-bold text-secondary" value="<?php echo date('d/m/Y'); ?>" readonly>
+                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="<?php echo date('d/m/Y'); ?>" readonly>
                                     <input type="hidden" name="test_date" value="<?php echo date('Y-m-d'); ?>">
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Bench Test</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Bench Test</label>
                                 <div class="col-sm-7">
-                                    <select name="bench_test" class="form-select form-select-sm">
+                                    <select name="bench_test" class="form-select form-select-sm" style="font-size:12px;">
                                         <option value="No.1 ED 22">No.1 ED 22</option>
                                         <option value="No.2 ED 22">No.2 ED 22</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Operator Name</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator Name</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control" name="operator_name" value="<?php echo $_SESSION['nama_lengkap']; ?>" readonly>
+                                    <input type="text" class="form-control" style="font-size:12px;" name="operator_name" value="<?php echo $_SESSION['nama_lengkap']; ?>" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Lube Oil</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Lube Oil</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="lube_oil" class="form-control form-control-sm bg-light text-secondary" value="Meditran SAE-40" readonly>
+                                    <input type="text" name="lube_oil" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="Meditran SAE-40" readonly>
                                 </div>
                             </div>
+
                         </div>
 
                         <div class="col-md-3">
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Fuel</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Fuel</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="fuel_type" class="form-control form-control-sm bg-light text-secondary" value="B0" readonly>
+                                    <input type="text" name="fuel_type" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="B0" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Fuel sp. Grafity</label>
-                                <div class="col-sm-7"><input type="number" name="fuel_sp_gravity" step="0.001" class="form-control form-control-sm bg-white"></div>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Fuel sp. Grafity</label>
+                                <div class="col-sm-7"><input type="number" name="fuel_sp_gravity" step="0.001" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Dry temp (°C)</label>
-                                <div class="col-sm-7"><input type="number" name="dry_temp" step="0.1" class="form-control form-control-sm bg-white"></div>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Dry temp (°C)</label>
+                                <div class="col-sm-7"><input type="number" name="dry_temp" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Wet temp (°C)</label>
-                                <div class="col-sm-7"><input type="number" name="wet_temp" step="0.1" class="form-control form-control-sm bg-white"></div>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Wet temp (°C)</label>
+                                <div class="col-sm-7"><input type="number" name="wet_temp" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Atmosphere press</label>
-                                <div class="col-sm-7"><input type="number" name="atmosphere_press" step="0.1" class="form-control form-control-sm bg-white"></div>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Atmosphere press</label>
+                                <div class="col-sm-7"><input type="number" name="atmosphere_press" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                         </div>
 
                         <div class="col-md-3">
                             <div class="row mb-1 align-items-center">
-                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Limiter Act.</label>
+                                <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Limiter Act.</label>
                                 <div class="col-sm-8">
-                                    <input type="text" name="limiter_actual" class="form-control form-control-sm bg-white">
+                                    <input type="text" name="limiter_actual" class="form-control form-control-sm" style="font-size:12px;">
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
-                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Limiter After Set</label>
+                                <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Limiter After Set</label>
                                 <div class="col-sm-8">
-                                    <input type="text" name="limiter_after_set" class="form-control form-control-sm bg-white">
+                                    <input type="text" name="limiter_after_set" class="form-control form-control-sm" style="font-size:12px;">
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
-                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Hi Idle</label>
+                                <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Hi Idle</label>
                                 <div class="col-sm-4">
                                     <input type="text" id="lbl_hi_idle" class="form-control form-control-sm bg-light text-secondary text-center fw-bold" readonly placeholder="-">
                                 </div>
@@ -265,15 +472,15 @@ $is_approver = (
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
-                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Eng. Speed Max</label>
+                                <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Eng. Speed Max</label>
                                 <div class="col-sm-8">
-                                    <input type="number" name="eng_speed_max" class="form-control form-control-sm bg-white">
+                                    <input type="number" name="eng_speed_max" class="form-control form-control-sm" style="font-size:12px;">
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
-                                <label class="col-sm-4 col-form-label col-form-label-sm fw-bold">Eng. Speed Min</label>
+                                <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Eng. Speed Min</label>
                                 <div class="col-sm-8">
-                                    <input type="number" name="eng_speed_min" class="form-control form-control-sm bg-white">
+                                    <input type="number" name="eng_speed_min" class="form-control form-control-sm" style="font-size:12px;">
                                 </div>
                             </div>
                         </div>
@@ -285,7 +492,7 @@ $is_approver = (
                 <div class="card-body p-3">
                     <div class="row">
                         <div class="col-md-4">
-                            <div class="section-title text-center">Leakage Check</div>
+                            <div class="checklist-header">Leakage Check</div>
                             <div class="px-2" style="max-height: 200px; overflow-y: auto;">
                                 <?php 
                                 $q_leak = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Leakage Check'");
@@ -304,7 +511,7 @@ $is_approver = (
                         </div>
 
                         <div class="col-md-4 border-start border-end">
-                            <div class="section-title text-center">Assembly Check</div>
+                            <div class="checklist-header">Assembly Check</div>
                             <div class="px-2" style="max-height: 200px; overflow-y: auto;">
                                 <?php 
                                 $q_ass = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Assembly Check'");
@@ -323,7 +530,7 @@ $is_approver = (
                         </div>
 
                         <div class="col-md-4">
-                            <div class="section-title text-center">Function of Component</div>
+                            <div class="checklist-header">Function of Component</div>
                             <div class="px-2" style="max-height: 200px; overflow-y: auto;">
                                 <?php 
                                 $q_fun = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Function of Component'");
@@ -344,17 +551,17 @@ $is_approver = (
                 </div>
             </div>
 
-            <div class="card mb-3 shadow-sm table-gray-custom">
+            <div class="card mb-3 perf-card">
+                <div class="perf-card-header"><i class="fa-solid fa-chart-line me-2"></i>MAIN DATA PERFORMANCE TEST (DATA 1 & DATA 2 INTEGRATED)</div>
                 <div class="card-body p-2">
-                    <div class="section-title m-0 mb-1">MAIN DATA PERFORMANCE TEST (DATA 1 & DATA 2 INTEGRATED)</div>
                     <div class="scrollable-table">
                         <table class="table table-sm table-bordered m-0 text-center align-middle">
                             <thead>
                                 <tr>
                                     <th rowspan="3" style="width: 40px;">No</th>
                                     <th rowspan="3" style="min-width: 130px;">Eng. Speed min-1</th>
-                                    <th colspan="8" class="bg-primary text-white">OUTPUT, TORQUE & FUEL (DATA 1)</th>
-                                    <th colspan="10" class="bg-success text-white">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>
+                                    <th colspan="8" class="th-data1">OUTPUT, TORQUE & FUEL (DATA 1)</th>
+                                    <th colspan="10" class="th-data2">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>
                                 </tr>
                                 <tr>
                                     <th colspan="2">Output</th>
@@ -428,7 +635,7 @@ $is_approver = (
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size: 11px; border: 1px solid #808080;">
                             <thead>
-                                <tr style="background-color: #a9a9a9; color: black; font-weight: bold; text-align: center; vertical-align: middle;">
+                                <tr style="background-color: #f5e6e6; color: var(--maroon); font-weight: bold; text-align: center; vertical-align: middle;">
                                     <th rowspan="2" style="border: 1px solid #000000;">Eng. Speed</th>
                                     <th rowspan="2" style="border: 1px solid #000000;">Torque (Nm)</th>
                                     <th rowspan="2" style="border: 1px solid #000000;">Coolant (°C)</th>
@@ -439,7 +646,7 @@ $is_approver = (
                                     <th colspan="2" style="border: 1px solid #000000;">Torque Injection pipe</th> 
                                     <th rowspan="2" style="border: 1px solid #000000;">Torque Nut Joint</th>
                                 </tr>
-                                <tr style="background-color: #a9a9a9; color: black; text-align: center; vertical-align: middle; font-size: 11px;">
+                                <tr style="background-color: #f5e6e6; color: var(--maroon); text-align: center; vertical-align: middle; font-size: 11px;">
                                     <th style="border: 1px solid #000000; font-weight: normal;">at glow plug a</th>
                                     <th style="border: 1px solid #000000; font-weight: normal;">wire battery</th>
                                     <th style="border: 1px solid #000000; font-weight: normal;">at injector</th>
@@ -469,17 +676,17 @@ $is_approver = (
             <div class="row g-2">
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="card-header bg-primary text-white py-2">
-                            <h6 class="card-title mb-0 text-center fw-bold">Correction Factor & Blow By</h6>
+                        <div class="bottom-card-header">Correction Factor & Blow By</div>
+                        <div style="display:none">
                         </div>
                         <div class="card-body p-0">
                             <table class="table table-bordered m-0 text-center align-middle" style="border: 1px solid #808080; font-size: 12px; height: 100%;">
                                 <tbody>
-                                    <tr style="background-color: #a9a9a9; color: black;">
+                                    <tr style="background-color: #f5e6e6; color: var(--maroon);">
                                         <td colspan="2" class="fw-bold py-2" style="width: 50%;">Correction Factor</td>
                                         <td rowspan="2" class="fw-bold py-2" style="width: 50%; vertical-align: middle;">Blow by (std &lt;0.8%)</td>
                                     </tr>
-                                    <tr style="background-color: #a9a9a9; color: black;">
+                                    <tr style="background-color: #f5e6e6; color: var(--maroon);">
                                         <td class="fw-bold py-1" style="width: 25%;">α</td>
                                         <td class="fw-bold py-1" style="width: 25%;">β</td>
                                     </tr>
@@ -488,7 +695,7 @@ $is_approver = (
                                         <td class="p-2"><input type="text" name="correction_beta" class="form-control text-center" style="border-radius: 4px;"></td>
                                         <td class="p-2"><input type="text" name="blow_by" class="form-control text-center" style="border-radius: 4px;"></td>
                                     </tr>
-                                    <tr style="background-color: #a9a9a9; color: black;">
+                                    <tr style="background-color: #f5e6e6; color: var(--maroon);">
                                         <td colspan="2" class="fw-bold py-2" style="line-height: 1.3; font-size: 11px; height: 40px; vertical-align: middle;">
                                             Min eng. Speed when LO switch<br>ON &le;500 rpm
                                         </td>
@@ -500,13 +707,13 @@ $is_approver = (
                                         <td colspan="2" class="p-2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="min_eng_speed_lo" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #a9a9a9; border-left: 0; font-size: 11px;">Rpm</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">Rpm</span>
                                             </div>
                                         </td>
                                         <td class="p-2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="pulley_distance" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #a9a9a9; border-left: 0; font-size: 11px;">mm</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">mm</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -518,54 +725,54 @@ $is_approver = (
 
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="card-header bg-primary text-white py-2">
-                            <h6 class="card-title mb-0 text-center fw-bold">Fuel Injection Timing (FIC)</h6>
+                        <div class="bottom-card-header">Fuel Injection Timing (FIC)</div>
+                        <div style="display:none">
                         </div>
                         <div class="card-body p-0">
                             <table class="table table-bordered m-0 align-middle" style="border: 1px solid #808080; font-size: 12px; height: 100%;">
                                 <tbody>
                                     <tr>
-                                        <td class="fw-bold table-light" style="width: 35%; background-color: #a9a9a9; color: black; padding-left: 10px;">FIC standard</td>
-                                        <td colspan="2" class="p-1" style="background-color: #e0e0e0;">
+                                        <td class="fw-bold table-light" style="width: 35%; padding-left: 10px; color: var(--gray-dk);">FIC standard</td>
+                                        <td colspan="2" class="p-1">
                                             <input type="text" name="fic_standard" id="fic_standard" class="form-control form-control-sm fw-bold text-primary text-center bg-transparent border-0" readonly placeholder="-">
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC actual</td>
+                                        <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC actual</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="fic_actual_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
                                                 <input type="text" name="fic_actual_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC before test</td>
+                                        <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC before test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="fic_before_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
                                                 <input type="text" name="fic_before_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">FIC after test</td>
+                                        <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC after test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="fic_after_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">°/</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
                                                 <input type="text" name="fic_after_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="fw-bold table-light" style="background-color: #a9a9a9; color: black; padding-left: 10px;">Belt tension 15-20 mm</td>
+                                        <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">Belt tension 15-20 mm</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="belt_tension_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background-color: #a9a9a9; border-left: 0; border-right: 0;">mm</span>
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">mm</span>
                                                 <input type="text" name="belt_tension_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
@@ -579,8 +786,19 @@ $is_approver = (
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100 bg-light border-secondary">
                         <div class="card-body d-flex flex-column justify-content-center align-items-center p-3">
+                            <!-- Foto Engine -->
+                            <div class="w-100 mb-3">
+                                <label class="fw-bold mb-1 d-block" style="font-size:12px; color:#555;">
+                                    <i class="fa-solid fa-camera me-1" style="color:#7B1D1D;"></i>Foto Engine
+                                </label>
+                                <input type="file" name="foto_engine" id="foto_engine" accept="image/*" capture="environment"
+                                       class="form-control form-control-sm" style="font-size:11px; padding:3px 6px;">
+                                <div id="preview_foto_engine" style="display:none; margin-top:6px; text-align:center;">
+                                    <img id="img_preview_engine" src="" style="max-width:100%; max-height:100px; border-radius:8px; border:1px solid #ddd; object-fit:cover;">
+                                </div>
+                            </div>
                             <?php if($op_area_tr): ?>
-                            <button type="submit" class="btn btn-success w-100 py-3 fw-bold shadow-sm">
+                            <button type="submit" class="btn-submit-tr">
                                 <i class="fa-solid fa-paper-plane me-2"></i>SIMPAN DATA TEST RUN
                             </button>
                             <?php else: ?>
@@ -609,21 +827,24 @@ $is_approver = (
 
             <!-- HEADER CARD -->
             <div class="card mb-3 shadow-sm">
-                <div class="card-header py-2" style="background-color:#157347;">
-                    <h5 class="card-title m-0 text-center fw-bold text-white">FINAL INSPECTION</h5>
+                <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
+                    <div class="d-flex align-items-center gap-2 py-2 px-2">
+                        <i class="fa-solid fa-clipboard-list text-white" style="font-size:16px;"></i>
+                        <h5 class="card-title m-0 fw-bold text-white" style="letter-spacing:0.8px;">FINAL INSPECTION</h5>
+                    </div>
                 </div>
                 <div class="card-body p-3">
                     <div class="row g-2">
                         <div class="col-md-3">
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Inspect Date</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Inspect Date</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control form-control-sm bg-light fw-bold text-secondary"
+                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
                                            value="<?php echo date('d/m/Y'); ?>" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine Model</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
                                 <div class="col-sm-7">
                                     <select name="engine_model" id="fi_engine_model"
                                             class="form-select form-select-sm fw-bold text-dark border-success shadow-sm" required>
@@ -638,7 +859,7 @@ $is_approver = (
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm fw-bold">Engine No.</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
                                     <input type="text" name="engine_no" class="form-control form-control-sm"
                                            required placeholder="Ketik No. Mesin...">
@@ -647,9 +868,9 @@ $is_approver = (
                         </div>
                         <div class="col-md-3">
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm">Operator</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control form-control-sm bg-light text-secondary"
+                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
                                            value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>" readonly>
                                 </div>
                             </div>
@@ -699,12 +920,12 @@ $is_approver = (
                                 <i class="fa-solid fa-rotate-left me-1"></i>Reset Form
                             </button>
                             <?php if($op_area_fi): ?>
-                            <button type="submit" class="btn btn-success fw-bold px-4 py-2 shadow-sm"
-                                    id="btn_fi_submit" disabled>
+                            <button type="submit" class="btn-submit-tr px-4 py-2"
+                                    id="btn_fi_submit" disabled style="width:auto; font-size:13px;">
                                 <i class="fa-solid fa-paper-plane me-2"></i>SIMPAN FINAL INSPECTION
                             </button>
                             <?php else: ?>
-                            <button type="button" class="btn btn-secondary fw-bold px-4 py-2 shadow-sm" disabled>
+                            <button type="button" class="btn fw-bold px-4 py-2" disabled style="background:#ccc;color:#888;border-radius:8px;">
                                 <i class="fa-solid fa-lock me-2"></i>BUKAN AREA ANDA
                             </button>
                             <small class="text-muted" style="font-size:11px;">
@@ -725,7 +946,7 @@ $is_approver = (
 <div class="table-responsive">
 <table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size:12px;">
     <thead>
-        <tr style="background-color:#157347; color:#fff;">
+        <tr style="background:linear-gradient(90deg,#5a1414,#7B1D1D); color:#fff;">
             <th style="width:35px;">#</th>
             <th class="text-start" style="min-width:200px;">Inspection Item</th>
             <th class="text-start" style="min-width:200px;">Parameter / Standard</th>
@@ -942,9 +1163,19 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 <?php if ($canApprove): ?>
                 <td class="text-center">
                     <?php if ($myStatus === 'approved'): ?>
-                        <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
-                            <i class="fa-solid fa-check me-1"></i>Sudah Approved
-                        </span>
+                        <div class="d-flex flex-column gap-1 align-items-center">
+                            <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
+                                <i class="fa-solid fa-check me-1"></i>Sudah Approved
+                            </span>
+                            <?php 
+                            $modul_pdf = $stage === 'Test_Running' ? 'test_running' : ($stage === 'Final_Inspection' ? 'final_inspection' : 'packing');
+                            ?>
+                            <a href="download_pdf.php?id=<?php echo $recordId; ?>&modul=<?php echo $modul_pdf; ?>"
+                               class="btn btn-sm fw-bold" target="_blank"
+                               style="background:#7B1D1D;color:#fff;border:none;font-size:10px;padding:2px 8px;border-radius:4px;">
+                                <i class="fa-solid fa-file-pdf me-1"></i>Download PDF
+                            </a>
+                        </div>
                     <?php elseif ($myStatus === 'rejected'): ?>
                         <span class="badge badge-rejected px-2 py-1" style="font-size:10px;">
                             <i class="fa-solid fa-xmark me-1"></i>Sudah Rejected
@@ -992,9 +1223,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-test-running" class="module-section active-module">
     <div class="container-fluid pb-3">
         <div class="card shadow-sm">
-            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#343a40;">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%);">
                 <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-clipboard-check me-2"></i>APPROVAL – TEST RUNNING</h5>
-                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman</strong></span>
+                <span class="badge" style="font-size:11px; background:rgba(255,255,255,0.2); color:#fff;">Level: <strong>Foreman</strong></span>
             </div>
             <div class="card-body p-3">
                 <?php renderApprovalTable('result_test_run', 'Test_Running', [['role_key'=>'Foreman','label'=>'Foreman']], $role, $koneksi); ?>
@@ -1007,9 +1238,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-final-inspection" class="module-section">
     <div class="container-fluid pb-3">
         <div class="card shadow-sm">
-            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#157347;">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(135deg,#5a1414,#7B1D1D);">
                 <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-magnifying-glass-chart me-2"></i>APPROVAL – FINAL INSPECTION</h5>
-                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor</strong></span>
+                <span class="badge" style="font-size:11px; background:rgba(255,255,255,0.2); color:#fff;">Level: <strong>Foreman → Supervisor</strong></span>
             </div>
             <div class="card-body p-3">
                 <?php renderApprovalTable('final_inspection_data', 'Final_Inspection', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor']], $role, $koneksi); ?>
@@ -1022,7 +1253,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
         <div class="card shadow-sm">
-            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background-color:#997404;">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(135deg,#3d1010,#5a1414);">
                 <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-box-archive me-2"></i>APPROVAL – PACKING</h5>
                 <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor → Asisten Manager</strong></span>
             </div>
@@ -1043,7 +1274,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             </div>
             <div class="modal-body">
                 <p class="text-muted mb-2" style="font-size:13px;">Isi alasan penolakan. Catatan ini akan terlihat oleh operator.</p>
-                <textarea id="rejectReasonText" class="form-control" rows="4" placeholder="Contoh: Output melebihi toleransi, perlu pengecekan ulang..."></textarea>
+                <textarea id="rejectReasonText" class="form-control" style="font-size:12px;" rows="4" placeholder="Contoh: Output melebihi toleransi, perlu pengecekan ulang..."></textarea>
                 <div id="rejectReasonError" class="text-danger mt-1" style="font-size:12px; display:none;">
                     <i class="fa-solid fa-circle-exclamation me-1"></i>Alasan tidak boleh kosong.
                 </div>
@@ -1116,6 +1347,7 @@ function switchModule(name) {
 <?php if($is_approver): ?>
 // --- Approve: parameter (id, stage, role) -> POST ke proses_approve.php ---
 function doApprove(recordId, stage, role) {
+    console.log('doApprove called:', recordId, stage, role);
     if (!confirm('Yakin ingin APPROVE data ini?')) return;
     $.post('proses_approve.php',
         { action:'approve', id:recordId, stage:stage, role:role },
@@ -1234,7 +1466,7 @@ $('#fi_engine_model').change(function(){
         return;
     }
 
-    container.html('<div class="text-center py-5"><div class="spinner-border text-success" role="status"></div><div class="mt-2 text-muted" style="font-size:12px;">Memuat checklist...</div></div>');
+    container.html('<div class="text-center py-5"><div class="spinner-border" role="status" style="color:#7B1D1D;"></div><div class="mt-2 text-muted" style="font-size:12px;">Memuat checklist...</div></div>');
     submitBtn.prop('disabled', true);
 
     $.ajax({
@@ -1319,6 +1551,141 @@ function escHtml(str) {
         .replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;');
 }
+
+// -------------------------------------------------------
+// VALIDASI FORM TEST RUNNING - semua field wajib
+// -------------------------------------------------------
+function validateTRForm(form) {
+    var errors = [];
+
+    // Field teks/number wajib
+    var requiredFields = [
+        { name: 'engine_model',      label: 'Engine Model' },
+        { name: 'engine_no',         label: 'Engine No.' },
+        { name: 'fuel_sp_gravity',   label: 'Fuel sp. Gravity' },
+        { name: 'dry_temp',          label: 'Dry Temp' },
+        { name: 'wet_temp',          label: 'Wet Temp' },
+        { name: 'atmosphere_press',  label: 'Atmosphere Press' },
+        { name: 'limiter_actual',    label: 'Limiter Actual' },
+        { name: 'limiter_after_set', label: 'Limiter After Set' },
+        { name: 'hi_idle_actual',    label: 'Hi Idle Actual' },
+        { name: 'eng_speed_max',     label: 'Eng. Speed Max' },
+        { name: 'eng_speed_min',     label: 'Eng. Speed Min' },
+        // Data 1
+        { name: 'r1_actual_nm',      label: 'Row 1 - Actual (Nm)' },
+        { name: 'r1_corrected_kw',   label: 'Row 1 - Corrected (kW)' },
+        { name: 'r1_torque_nm',      label: 'Row 1 - Torque (Nm)' },
+        { name: 'r1_load_kgm',       label: 'Row 1 - Load (kgm)' },
+        { name: 'r1_fuel_cc_30sec',  label: 'Row 1 - Fuel cc/30sec' },
+        { name: 'r1_fuel_mm3_st',    label: 'Row 1 - Fuel mm³/st' },
+        { name: 'r1_fuel_g_kwh',     label: 'Row 1 - Fuel g/kWh' },
+        { name: 'r1_sd_bsu',         label: 'Row 1 - Sd (BSU)' },
+        // Data 2
+        { name: 'r1_temp_exhaust',   label: 'Row 1 - Exhaust Temp' },
+        { name: 'r1_temp_oil',       label: 'Row 1 - Oil Temp' },
+        { name: 'r1_lo_press',       label: 'Row 1 - LO Press' },
+        { name: 'r1_intake_press',   label: 'Row 1 - Intake Press' },
+        { name: 'r1_exhaust_press',  label: 'Row 1 - Exhaust Press' },
+        { name: 'r1_nox',            label: 'Row 1 - NOx' },
+        { name: 'r1_co',             label: 'Row 1 - CO' },
+        { name: 'r1_co2',            label: 'Row 1 - CO2' },
+        { name: 'r1_o2',             label: 'Row 1 - O2' },
+        // Row 2
+        { name: 'r2_actual_nm',      label: 'Row 2 - Actual (Nm)' },
+        { name: 'r2_corrected_kw',   label: 'Row 2 - Corrected (kW)' },
+        { name: 'r2_temp_exhaust',   label: 'Row 2 - Exhaust Temp' },
+        { name: 'r2_lo_press',       label: 'Row 2 - LO Press' },
+        { name: 'r2_intake_press',   label: 'Row 2 - Intake Press' },
+        { name: 'r2_exhaust_press',  label: 'Row 2 - Exhaust Press' },
+        { name: 'r2_nox',            label: 'Row 2 - NOx' },
+        { name: 'r2_co',             label: 'Row 2 - CO' },
+        { name: 'r2_co2',            label: 'Row 2 - CO2' },
+        { name: 'r2_o2',             label: 'Row 2 - O2' },
+        { name: 'r2_correct_co',     label: 'Row 2 - Correct CO' },
+        // Row 3
+        { name: 'r3_torque_nm',      label: 'Row 3 - Torque (Nm)' },
+        { name: 'r3_coolant_temp',   label: 'Row 3 - Coolant Temp' },
+        { name: 'r3_current_glow',   label: 'Row 3 - Current Glow' },
+        { name: 'r3_current_wire',   label: 'Row 3 - Current Wire' },
+        { name: 'r3_torque_switch_lo',          label: 'Torque Box LO' },
+        { name: 'r3_torque_pipe_air',           label: 'Torque Air Intake' },
+        { name: 'r3_torque_bolt_cw',            label: 'Torque Bolt CW' },
+        { name: 'r3_torque_injection_injector', label: 'Torque Injection at Injector' },
+        { name: 'r3_torque_injection_fop',      label: 'Torque Injection at FOP' },
+        { name: 'r3_torque_nut_joint',          label: 'Torque Nut Joint' },
+        // Bottom
+        { name: 'correction_alpha',  label: 'Correction Factor α' },
+        { name: 'correction_beta',   label: 'Correction Factor β' },
+        { name: 'blow_by',           label: 'Blow By' },
+        { name: 'min_eng_speed_lo',  label: 'Min Eng. Speed LO' },
+        { name: 'pulley_distance',   label: 'Pulley Distance' },
+        // FIC
+        { name: 'fic_actual_left',      label: 'FIC Actual (kiri)' },
+        { name: 'fic_actual_right',     label: 'FIC Actual (kanan)' },
+        { name: 'fic_before_test_left', label: 'FIC Before Test (kiri)' },
+        { name: 'fic_before_test_right',label: 'FIC Before Test (kanan)' },
+        { name: 'fic_after_test_left',  label: 'FIC After Test (kiri)' },
+        { name: 'fic_after_test_right', label: 'FIC After Test (kanan)' },
+        { name: 'belt_tension_left',    label: 'Belt Tension (kiri)' },
+        { name: 'belt_tension_right',   label: 'Belt Tension (kanan)' },
+    ];
+
+    requiredFields.forEach(function(f) {
+        var el = form.elements[f.name];
+        if (el && el.value.trim() === '') {
+            errors.push(f.label);
+            $(el).css('border-color', '#dc3545');
+        } else if (el) {
+            $(el).css('border-color', '');
+        }
+    });
+
+    // Validasi foto engine
+    var fotoEl = form.elements['foto_engine'];
+    if (!fotoEl || !fotoEl.files || fotoEl.files.length === 0) {
+        errors.push('Foto Engine');
+        $('#foto_engine').css('border-color', '#dc3545');
+    } else {
+        $('#foto_engine').css('border-color', '');
+    }
+
+    if (errors.length > 0) {
+        // Tampilkan toast error
+        var msg = errors.length <= 3
+            ? 'Field wajib belum diisi: ' + errors.join(', ')
+            : errors.length + ' field belum diisi. Harap lengkapi semua data.';
+        showToast('danger', msg);
+        // Scroll ke field pertama yang error
+        var firstErr = form.elements[requiredFields.find(f => {
+            var el = form.elements[f.name];
+            return el && el.value.trim() === '';
+        })?.name];
+        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
+    return true;
+}
+
+// Reset border merah saat field diisi
+$(document).on('input change', '#sec-test-running input, #sec-test-running select', function(){
+    if ($(this).val() !== '') $(this).css('border-color', '');
+});
+
+// Preview foto engine
+
+$('#foto_engine').change(function(){
+    var file = this.files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            $('#img_preview_engine').attr('src', e.target.result);
+            $('#preview_foto_engine').show();
+        };
+        reader.readAsDataURL(file);
+    } else {
+        $('#preview_foto_engine').hide();
+    }
+});
 
 function resetFIForm() {
     if (!confirm('Reset form Final Inspection?')) return;
