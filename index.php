@@ -412,7 +412,7 @@ $is_approver = (
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator Name</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control" style="font-size:12px;" name="operator_name" value="<?php echo $_SESSION['nama_lengkap']; ?>" readonly>
+                                    <input type="text" class="form-control" style="font-size:12px;" name="operator_name" value="<?php echo $op_area_tr ? $_SESSION['nama_lengkap'] : ''; ?>" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
@@ -962,17 +962,117 @@ $is_approver = (
 
 
 
-<!-- ---- TAB: PACKING (placeholder) ---- -->
+<!-- ---- TAB: PACKING ---- -->
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
-        <div class="card shadow-sm">
-            <div class="card-header bg-warning text-dark py-2">
-                <h5 class="card-title m-0 fw-bold">PACKING MODULE</h5>
+        <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk">
+
+            <!-- HEADER CARD -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
+                    <div class="d-flex align-items-center gap-2 py-2 px-2">
+                        <i class="fa-solid fa-box text-white" style="font-size:16px;"></i>
+                        <h5 class="card-title m-0 fw-bold text-white" style="letter-spacing:0.8px;">PACKING</h5>
+                    </div>
+                </div>
+                <div class="card-body p-3" style="background:linear-gradient(135deg,#fff 0%,#fdf5f5 100%);">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Pack Date</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
+                                           value="<?php echo date('d/m/Y'); ?>" readonly>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
+                                <div class="col-sm-7">
+                                    <select name="engine_model" id="pk_engine_model"
+                                            class="form-select form-select-sm" style="font-size:12px; font-weight:500; border-color:#7B1D1D;" required>
+                                        <option value="">- Pilih Model -</option>
+                                        <?php
+                                        $q_pk_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec ORDER BY engine_model");
+                                        while ($pm = mysqli_fetch_array($q_pk_model)) {
+                                            echo "<option value='".$pm['engine_model']."'>".$pm['engine_model']."</option>";
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
+                                <div class="col-sm-7">
+                                    <input type="text" name="engine_no" class="form-control form-control-sm" style="font-size:12px;"
+                                           required placeholder="Ketik No. Mesin...">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="row mb-1">
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Operator</label>
+                                <div class="col-sm-7">
+                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
+                                           value="<?php echo $op_area_pk ? htmlspecialchars($_SESSION['nama_lengkap']) : ''; ?>" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="row mb-1">
+                                <label class="col-sm-2 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Noted</label>
+                                <div class="col-sm-10">
+                                    <textarea name="noted" class="form-control form-control-sm" rows="3"
+                                              style="font-size:12px;" placeholder="Catatan tambahan (opsional)..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body bg-white p-4 text-center">
-                <p class="text-muted">Konten Manajemen, Checklist Kelengkapan, dan Approval Status Selesai Packing akan tampil di area ini.</p>
+
+            <!-- CHECKLIST TABLE -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2 px-1">
+                        <span class="fw-bold" style="font-size:13px; color:#7B1D1D;">
+                            <i class="fa-solid fa-list-check me-1"></i>PACKING CHECKLIST
+                        </span>
+                        <span class="text-muted" id="pk_item_count" style="font-size:11px;">Memuat checklist...</span>
+                    </div>
+                    <div id="pk_checklist_container">
+                        <div class="text-center text-muted py-4">
+                            <div class="spinner-border" role="status" style="color:#7B1D1D;"></div>
+                            <div class="mt-2" style="font-size:12px;">Memuat checklist...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+
+            <!-- SUBMIT -->
+            <div class="row g-2">
+                <div class="col-md-12">
+                    <div class="card shadow-sm bg-light">
+                        <div class="card-body d-flex justify-content-end align-items-center p-3 gap-3">
+                            <?php if($op_area_pk): ?>
+                            <button type="submit" class="btn-submit-tr px-4 py-2" id="btn_pk_submit"
+                                    style="width:auto; font-size:13px;">
+                                <i class="fa-solid fa-paper-plane me-2"></i>SIMPAN PACKING
+                            </button>
+                            <?php else: ?>
+                            <button type="button" class="btn fw-bold px-4 py-2" disabled
+                                    style="background:#ccc;color:#888;border-radius:8px;">
+                                <i class="fa-solid fa-lock me-2"></i>BUKAN AREA ANDA
+                            </button>
+                            <small class="text-muted" style="font-size:11px;">
+                                Anda adalah Operator <?php echo strtoupper(str_replace('_',' ',$_SESSION['role'])); ?>
+                            </small>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </form>
     </div>
 </div>
 
@@ -1686,6 +1786,91 @@ $('#foto_engine').change(function(){
         $('#preview_foto_engine').hide();
     }
 });
+
+// -------------------------------------------------------
+// Load checklist Packing otomatis saat halaman dibuka
+// (tidak perlu pilih model karena berlaku semua model)
+// -------------------------------------------------------
+function loadPackingChecklist() {
+    $.ajax({
+        url: 'ambil_checklist_packing.php',
+        type: 'GET',
+        dataType: 'json',
+        success: function(items) {
+            if (!items || items.length === 0) {
+                $('#pk_checklist_container').html('<div class="alert alert-warning m-2">Tidak ada checklist.</div>');
+                return;
+            }
+
+            var html = '<div class="table-responsive"><table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size:12px;">';
+            html += '<thead><tr style="background:linear-gradient(90deg,#5a1414,#7B1D1D); color:#fff;">';
+            html += '<th style="width:35px;">#</th>';
+            html += '<th class="text-start" style="min-width:200px;">Item</th>';
+            html += '<th class="text-start" style="min-width:200px;">Parameter / Standard</th>';
+            html += '<th style="width:100px;">Hasil</th>';
+            html += '<th style="width:160px;">Foto</th>';
+            html += '</tr></thead><tbody>';
+
+            items.forEach(function(item, i) {
+                html += '<tr>';
+                html += '<td class="text-center fw-bold text-muted">' + (i+1) + '</td>';
+                html += '<td class="text-start fw-semibold">';
+                html += '<input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">';
+                html += '<input type="hidden" name="parameter[]" value="' + escHtml(item.parameter || '') + '">';
+                html += escHtml(item.item_name) + '</td>';
+                html += '<td class="text-start text-muted" style="font-size:11px;">' + escHtml(item.parameter || '') + '</td>';
+                html += '<td><select name="result[]" class="form-select form-select-sm text-center fw-bold pk-result-sel" style="min-width:70px;">';
+                html += '<option value="Check">Check</option>';
+                html += '<option value="NG">NG</option>';
+                html += '<option value="-">-</option>';
+                html += '</select></td>';
+                html += '<td><input type="file" name="foto[' + i + ']" accept="image/*" capture="environment" ';
+                html += 'class="form-control form-control-sm pk-foto" style="font-size:10px; padding:2px 4px;">';
+                html += '<div class="pk-preview mt-1" style="display:none;">';
+                html += '<img src="" style="max-width:80px; max-height:60px; border-radius:4px; border:1px solid #dee2e6;"></div></td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            $('#pk_checklist_container').html(html);
+            $('#pk_item_count').text(items.length + ' item checklist');
+
+            // Color coding OK/NG
+            $(document).on('change', '.pk-result-sel', function(){
+                $(this).css('color', $(this).val() === 'NG' ? '#dc3545' : '#198754');
+            });
+
+            // Preview foto
+            $(document).on('change', '.pk-foto', function(){
+                var file = this.files[0];
+                var preview = $(this).siblings('.pk-preview');
+                if (file) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.find('img').attr('src', e.target.result);
+                        preview.show();
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    preview.hide();
+                }
+            });
+        },
+        error: function() {
+            $('#pk_checklist_container').html('<div class="alert alert-danger m-2">Gagal memuat checklist.</div>');
+        }
+    });
+}
+
+// Load checklist packing saat tab packing dibuka
+$(document).on('click', '#btn-packing', function(){
+    setTimeout(loadPackingChecklist, 100);
+});
+
+// Load juga kalau langsung di tab packing (dari URL hash)
+if (window.location.hash === '#packing') {
+    $(document).ready(function(){ loadPackingChecklist(); });
+}
 
 function resetFIForm() {
     if (!confirm('Reset form Final Inspection?')) return;
