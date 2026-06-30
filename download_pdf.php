@@ -18,6 +18,16 @@ if ($id <= 0) { die("ID tidak valid."); }
 if ($modul === 'test_running') {
 
     $row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM result_test_run WHERE id = $id"));
+    // Ambil data dari master_engine_spec
+    if ($row && !empty($row['engine_model'])) {
+        $em = mysqli_real_escape_string($koneksi, $row['engine_model']);
+        $spec = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM master_engine_spec WHERE engine_model = '$em' LIMIT 1"));
+        if ($spec) {
+            $row['cont_power'] = $spec['cont_power'] ?? '';
+            $row['max_power']  = $spec['max_power']  ?? '';
+            $row['hi_idle_std']= $spec['hi_idle']    ?? '';
+        }
+    }
     if (!$row) die("Data tidak ditemukan.");
 
     // Cek sudah approved Foreman
@@ -45,6 +55,21 @@ if ($modul === 'test_running') {
     $checklists = [];
     $q_chk = mysqli_query($koneksi, "SELECT * FROM final_inspection_checklist WHERE fi_id = $id");
     if ($q_chk) while ($c = mysqli_fetch_assoc($q_chk)) $checklists[] = $c;
+
+} elseif ($modul === 'packing') {
+
+    $row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM packing_data WHERE id = $id"));
+    if (!$row) die("Data tidak ditemukan.");
+
+    $apv = mysqli_fetch_assoc(mysqli_query($koneksi,
+        "SELECT * FROM approvals WHERE test_run_id=$id AND stage='Packing' AND role='Asst_Manager' AND status='approved'"
+    ));
+    if (!$apv) die("Data belum disetujui penuh. PDF hanya tersedia setelah Asisten Manager approve.");
+
+    // Ambil checklist Packing
+    $checklists = [];
+    $q_chk = mysqli_query($koneksi, "SELECT * FROM packing_checklist WHERE pack_id = $id");
+    if ($q_chk) while ($c = mysqli_fetch_assoc($q_chk)) $checklists[] = $c;
 }
 
 // Ambil semua approval record untuk modul ini
@@ -55,10 +80,17 @@ $q_apv = mysqli_query($koneksi, "SELECT * FROM approvals WHERE test_run_id=$id A
 if ($q_apv) while ($a = mysqli_fetch_assoc($q_apv)) $apv_all[$a['role']] = $a;
 
 // ============================================================
-// Foto engine
+// Foto engine (3 foto)
 // ============================================================
-$foto_base64 = '';
-$foto_path   = $row['foto_engine'] ?? '';
+$foto_list = [];
+for ($fi = 1; $fi <= 3; $fi++) {
+    $fp = $row['foto_engine_' . $fi] ?? '';
+    if ($fp && file_exists($fp)) {
+        $type = mime_content_type($fp);
+        $foto_list[] = 'data:' . $type . ';base64,' . base64_encode(file_get_contents($fp));
+    }
+}
+$foto_base64 = ''; // keep for compat
 if ($foto_path && file_exists($foto_path)) {
     $img_data    = file_get_contents($foto_path);
     $img_type    = mime_content_type($foto_path);
@@ -83,6 +115,8 @@ $operator     = val($row, 'operator_name');
 $test_date    = isset($row['test_date'])    && $row['test_date']    ? date('d/m/Y', strtotime($row['test_date']))    : '-';
 $inspect_date = isset($row['inspect_date']) && $row['inspect_date'] ? date('d/m/Y', strtotime($row['inspect_date'])) : '-';
 $noted        = $row['noted'] ?? '';
+$pack_date    = isset($row['pack_date']) && $row['pack_date'] ? date('d/m/Y', strtotime($row['pack_date'])) : '-';
+$dicatat_oleh = $row['dicatat_oleh'] ?? '-';
 
 // Approval info
 $apv_foreman  = $apv_all['Foreman']    ?? null;
@@ -157,7 +191,7 @@ ob_start(); ?>
     .foto-box img { max-width:180px; max-height:140px; border:1px solid #ddd; border-radius:4px; }
 
     /* Approval section */
-    table.apv-table { width:100%; border-collapse:collapse; margin-top:10px; }
+    table.apv-table { width:100%; border-collapse:collapse; margin-top:4px; }
     table.apv-table td { padding:6px 10px; border:0.5px solid #ddd; text-align:center; width:33%; vertical-align:top; }
     .apv-role  { font-weight:bold; color:#7B1D1D; font-size:9pt; margin-bottom:4px; }
     .apv-name  { font-size:9pt; margin-top:20px; border-top:1px solid #aaa; padding-top:4px; }
@@ -171,7 +205,7 @@ ob_start(); ?>
     .grid-2 td { vertical-align:top; padding:0 4px 0 0; }
 
     /* Footer */
-    .pdf-footer { text-align:center; font-size:7.5pt; color:#aaa; margin-top:12px; border-top:0.5px solid #eee; padding-top:4px; }
+    .pdf-footer { text-align:center; font-size:7.5pt; color:#aaa; margin-top:4px; border-top:0.5px solid #eee; padding-top:2px; }
 </style>
 </head>
 <body>
@@ -191,7 +225,7 @@ ob_start(); ?>
             <h2>Quality Control Department — Engine Manufacturing</h2>
         </td>
         <td class="header-right">
-            No. Dok: QC-TR-001<br>
+            No. Dok: <?php echo $modul==='test_running'?'QC-TR-001':($modul==='final_inspection'?'QC-FI-001':'QC-PK-001'); ?><br>
             Rev: 00<br>
             <?php echo date('d/m/Y'); ?>
         </td>
@@ -211,37 +245,30 @@ ob_start(); ?>
 <?php if($modul === 'test_running'): ?>
 <table class="info-table">
     <tr>
-        <td class="info-label">Engine Model</td>
-        <td class="info-val"><?php echo $engine_model; ?></td>
-        <td class="info-label">Test Date</td>
-        <td class="info-val"><?php echo $test_date; ?></td>
-        <td rowspan="6" style="width:200px; text-align:center; vertical-align:middle; padding:4px;">
-            <?php if($foto_base64): ?>
-            <div class="foto-box"><img src="<?php echo $foto_base64; ?>"><br><span style="font-size:7.5pt;color:#aaa;">Foto Engine</span></div>
-            <?php else: ?>
-            <div style="width:180px;height:120px;background:#f5f5f5;border:1px solid #ddd;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:7.5pt;color:#aaa;">Tidak ada foto</div>
-            <?php endif; ?>
-        </td>
-    </tr>
-    <tr>
-        <td class="info-label">Engine No.</td>
-        <td class="info-val"><?php echo $engine_no; ?></td>
-        <td class="info-label">Bench Test</td>
-        <td class="info-val"><?php echo val($row,'bench_test'); ?></td>
-    </tr>
-    <tr>
-        <td class="info-label">Operator</td>
-        <td class="info-val"><?php echo $operator; ?></td>
         <td class="info-label">Test Name</td>
         <td class="info-val"><?php echo val($row,'test_name'); ?></td>
+        <td class="info-label">Engine Model</td>
+        <td class="info-val"><?php echo $engine_model; ?></td>
+        <td class="info-label">Engine No.</td>
+        <td class="info-val"><?php echo $engine_no; ?></td>
+        <td class="info-label">Cont. Power</td>
+        <td class="info-val"><?php echo val($row,'cont_power'); ?></td>
     </tr>
     <tr>
-        <td class="info-label">Lube Oil</td>
-        <td class="info-val"><?php echo val($row,'lube_oil'); ?></td>
+        <td class="info-label">Test Date</td>
+        <td class="info-val"><?php echo $test_date; ?></td>
+        <td class="info-label">Bench Test</td>
+        <td class="info-val"><?php echo val($row,'bench_test'); ?></td>
+        <td class="info-label">Operator</td>
+        <td class="info-val"><?php echo $operator; ?></td>
+        <td class="info-label">Max Power</td>
+        <td class="info-val"><?php echo val($row,'max_power'); ?></td>
+    </tr>
+    <tr>
         <td class="info-label">Fuel</td>
         <td class="info-val"><?php echo val($row,'fuel_type'); ?></td>
-    </tr>
-    <tr>
+        <td class="info-label">Fuel sp. Gravity</td>
+        <td class="info-val"><?php echo val($row,'fuel_sp_gravity'); ?></td>
         <td class="info-label">Dry Temp (°C)</td>
         <td class="info-val"><?php echo val($row,'dry_temp'); ?></td>
         <td class="info-label">Wet Temp (°C)</td>
@@ -250,8 +277,22 @@ ob_start(); ?>
     <tr>
         <td class="info-label">Atm. Press</td>
         <td class="info-val"><?php echo val($row,'atmosphere_press'); ?></td>
-        <td class="info-label">Fuel sp. Gravity</td>
-        <td class="info-val"><?php echo val($row,'fuel_sp_gravity'); ?></td>
+        <td class="info-label">Lube Oil</td>
+        <td class="info-val"><?php echo val($row,'lube_oil'); ?></td>
+        <td class="info-label">Limiter Act.</td>
+        <td class="info-val"><?php echo val($row,'limiter_actual'); ?></td>
+        <td class="info-label">Limiter After Set</td>
+        <td class="info-val"><?php echo val($row,'limiter_after_set'); ?></td>
+    </tr>
+    <tr>
+        <td class="info-label">Hi Idle (std)</td>
+        <td class="info-val"><?php echo val($row,'hi_idle_std'); ?></td>
+        <td class="info-label">Hi Idle (actual)</td>
+        <td class="info-val"><?php echo val($row,'hi_idle_actual'); ?></td>
+        <td class="info-label">Eng. Speed Max</td>
+        <td class="info-val"><?php echo val($row,'eng_speed_max'); ?></td>
+        <td class="info-label">Eng. Speed Min</td>
+        <td class="info-val"><?php echo val($row,'eng_speed_min'); ?></td>
     </tr>
 </table>
 <?php elseif($modul === 'final_inspection'): ?>
@@ -274,6 +315,27 @@ ob_start(); ?>
         <td class="info-val" colspan="3"><?php echo e($noted); ?></td>
     </tr>
     <?php endif; ?>
+</table>
+<?php elseif($modul === 'packing'): ?>
+<table class="info-table">
+    <tr>
+        <td class="info-label">Engine Model</td>
+        <td class="info-val"><?php echo $engine_model; ?></td>
+        <td class="info-label">Pack Date</td>
+        <td class="info-val"><?php echo $pack_date; ?></td>
+    </tr>
+    <tr>
+        <td class="info-label">Engine No.</td>
+        <td class="info-val"><?php echo $engine_no; ?></td>
+        <td class="info-label">Operator Packing</td>
+        <td class="info-val"><?php echo $operator; ?></td>
+    </tr>
+    <tr>
+        <td class="info-label">Dicatat Oleh</td>
+        <td class="info-val"><?php echo e($dicatat_oleh); ?></td>
+        <td class="info-label">Noted</td>
+        <td class="info-val"><?php echo e($noted); ?></td>
+    </tr>
 </table>
 <?php endif; ?>
 
@@ -305,6 +367,26 @@ ob_start(); ?>
         </tr>
     <?php endforeach; ?>
     </tbody>
+</table>
+<?php endif; ?>
+
+<!-- ========== FOTO ENGINE ========== -->
+<?php if(!empty($foto_list)): ?>
+<div class="section-title">FOTO ENGINE</div>
+<table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+    <tr>
+    <?php foreach($foto_list as $fi => $fsrc): ?>
+        <td style="text-align:center; padding:4px; width:33%;">
+            <img src="<?php echo $fsrc; ?>" style="max-width:220px; max-height:160px; border:1px solid #ddd; border-radius:4px; object-fit:contain;">
+            <div style="font-size:7.5pt; color:#aaa; margin-top:3px;">Foto Engine <?php echo $fi+1; ?></div>
+        </td>
+    <?php endforeach; ?>
+    <?php for($fp = count($foto_list); $fp < 3; $fp++): ?>
+        <td style="text-align:center; padding:4px; width:33%;">
+            <div style="width:220px; height:160px; background:#f5f5f5; border:1px solid #ddd; margin:0 auto; font-size:7.5pt; color:#aaa; display:flex; align-items:center; justify-content:center;">Tidak ada foto</div>
+        </td>
+    <?php endfor; ?>
+    </tr>
 </table>
 <?php endif; ?>
 
@@ -496,6 +578,48 @@ ob_start(); ?>
 <p style="color:#aaa; font-size:8pt; text-align:center; padding:10px;">Tidak ada data checklist.</p>
 <?php endif; ?>
 
+<?php elseif($modul === 'packing'): ?>
+<div class="section-title">PACKING CHECKLIST</div>
+<?php if(!empty($checklists)): ?>
+<table class="chk-table">
+    <thead>
+        <tr>
+            <th style="width:30px;">#</th>
+            <th>Item</th>
+            <th>Parameter</th>
+            <th style="width:60px;">Hasil</th>
+            <th style="width:80px;">Foto</th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach($checklists as $i => $c):
+        $result = $c['result'] ?? '-';
+        $rc = ($result==='Check') ? 'badge-ok' : ($result==='NG' ? 'badge-ng' : '');
+    ?>
+        <tr>
+            <td style="text-align:center;"><?php echo $i+1; ?></td>
+            <td><?php echo e($c['item_name'] ?? '-'); ?></td>
+            <td style="font-size:7.5pt;color:#666;"><?php echo e($c['parameter'] ?? ''); ?></td>
+            <td style="text-align:center;"><span class="<?php echo $rc; ?>"><?php echo e($result); ?></span></td>
+            <td style="text-align:center;">
+                <?php if(!empty($c['foto_path']) && file_exists($c['foto_path'])):
+                    $img_data = file_get_contents($c['foto_path']);
+                    $img_type = mime_content_type($c['foto_path']);
+                    $b64 = 'data:'.$img_type.';base64,'.base64_encode($img_data);
+                ?>
+                <img src="<?php echo $b64; ?>" style="max-width:60px;max-height:45px;border-radius:3px;border:0.5px solid #ddd;">
+                <?php else: ?>
+                <span style="color:#aaa;font-size:7pt;">-</span>
+                <?php endif; ?>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+<?php else: ?>
+<p style="color:#aaa; font-size:8pt; text-align:center; padding:10px;">Tidak ada data checklist.</p>
+<?php endif; ?>
+
 <?php endif; ?>
 
 <!-- ========== APPROVAL SIGNATURE ========== -->
@@ -549,7 +673,7 @@ $mpdf = new \Mpdf\Mpdf([
     'mode'          => 'utf-8',
     'format'        => 'A4-L',
     'margin_top'    => 10,
-    'margin_bottom' => 10,
+    'margin_bottom' => 5,
     'margin_left'   => 10,
     'margin_right'  => 10,
 ]);

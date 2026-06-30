@@ -29,6 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $hi_idle_actual    = !empty($_POST['hi_idle_actual'])    ? $_POST['hi_idle_actual']    : 'NULL';
     $eng_speed_max     = !empty($_POST['eng_speed_max'])     ? $_POST['eng_speed_max']     : 'NULL';
     $eng_speed_min     = !empty($_POST['eng_speed_min'])     ? $_POST['eng_speed_min']     : 'NULL';
+    $cont_power        = mysqli_real_escape_string($koneksi, $_POST['cont_power']   ?? '');
+    $max_power         = mysqli_real_escape_string($koneksi, $_POST['max_power']    ?? '');
+    $hi_idle_std       = mysqli_real_escape_string($koneksi, $_POST['hi_idle_std']  ?? '');
 
     // 2. ROW 1
     $r1_actual_nm     = !empty($_POST['r1_actual_nm'])     ? $_POST['r1_actual_nm']     : 'NULL';
@@ -91,27 +94,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $belt_tension_right    = !empty($_POST['belt_tension_right'])    ? $_POST['belt_tension_right']    : 'NULL';
     $noted                 = isset($_POST['noted']) ? mysqli_real_escape_string($koneksi, $_POST['noted']) : '';
 
-    // 6. UPLOAD FOTO ENGINE
-    $foto_engine = 'NULL';
-    if (!empty($_FILES['foto_engine']['name']) && $_FILES['foto_engine']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = 'uploads/test_running/';
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-        $ext     = strtolower(pathinfo($_FILES['foto_engine']['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-        if (in_array($ext, $allowed)) {
-            $filename = 'tr_' . date('Ymd_His') . '_' . rand(100, 999) . '.' . $ext;
-            $dest     = $upload_dir . $filename;
-            if (move_uploaded_file($_FILES['foto_engine']['tmp_name'], $dest)) {
-                $foto_engine = "'" . mysqli_real_escape_string($koneksi, $dest) . "'";
+    // 6. UPLOAD FOTO ENGINE (3 foto)
+    $upload_dir = 'uploads/test_running/';
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+    $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+
+    $foto_engine_1 = 'NULL';
+    $foto_engine_2 = 'NULL';
+    $foto_engine_3 = 'NULL';
+
+    for ($fn = 1; $fn <= 3; $fn++) {
+        $field = 'foto_engine_' . $fn;
+        if (!empty($_FILES[$field]['name']) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
+            $ext = strtolower(pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $filename = 'tr_' . date('Ymd_His') . '_' . $fn . '_' . rand(100,999) . '.' . $ext;
+                $dest     = $upload_dir . $filename;
+                if (move_uploaded_file($_FILES[$field]['tmp_name'], $dest)) {
+                    ${'foto_engine_' . $fn} = "'" . mysqli_real_escape_string($koneksi, $dest) . "'";
+                }
             }
         }
     }
 
-    // 7. INSERT DATA UTAMA
+    // 7. CEK DUPLIKAT ENGINE NO DI TEST RUNNING
+    $cek_dup = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM result_test_run WHERE engine_no='$engine_no' LIMIT 1"));
+    if ($cek_dup) {
+        header("location:index.php?tr_error=duplikat&engine_no=" . urlencode($engine_no));
+        exit();
+    }
+
+    // 8. INSERT DATA UTAMA
     $query_utama = "INSERT INTO result_test_run (
         test_name, engine_model, engine_no, test_date, bench_test, operator_name, lube_oil, fuel_type,
         fuel_sp_gravity, dry_temp, wet_temp, atmosphere_press, limiter_actual, limiter_after_set,
-        hi_idle_actual, eng_speed_max, eng_speed_min,
+        cont_power, max_power, hi_idle_std, hi_idle_actual, eng_speed_max, eng_speed_min,
         r1_actual_nm, r1_corrected_kw, r1_torque_nm, r1_load_kgm, r1_fuel_cc_30sec, r1_fuel_mm3_st,
         r1_fuel_g_kwh, r1_sd_bsu, r1_temp_exhaust, r1_temp_oil, r1_lo_press, r1_intake_press,
         r1_exhaust_press, r1_nox, r1_co, r1_co2, r1_o2,
@@ -122,11 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         r3_torque_nut_joint, correction_alpha, correction_beta, blow_by, min_eng_speed_lo,
         pulley_distance, fic_standard, fic_actual_left, fic_actual_right, fic_before_test_left,
         fic_before_test_right, fic_after_test_left, fic_after_test_right, belt_tension_left,
-        belt_tension_right, noted, operator_test, foto_engine
+        belt_tension_right, noted, operator_test, foto_engine_1, foto_engine_2, foto_engine_3
     ) VALUES (
         '$test_name', '$engine_model', '$engine_no', '$test_date', '$bench_test', '$operator_name',
         '$lube_oil', '$fuel_type', $fuel_sp_gravity, $dry_temp, $wet_temp, $atmosphere_press,
-        '$limiter_actual', '$limiter_after_set', $hi_idle_actual, $eng_speed_max, $eng_speed_min,
+        '$limiter_actual', '$limiter_after_set', '$cont_power', '$max_power', '$hi_idle_std', $hi_idle_actual, $eng_speed_max, $eng_speed_min,
         $r1_actual_nm, $r1_corrected_kw, $r1_torque_nm, $r1_load_kgm, $r1_fuel_cc_30sec,
         $r1_fuel_mm3_st, $r1_fuel_g_kwh, $r1_sd_bsu, $r1_temp_exhaust, $r1_temp_oil, $r1_lo_press,
         $r1_intake_press, $r1_exhaust_press, $r1_nox, $r1_co, $r1_co2, $r1_o2,
@@ -137,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $r3_torque_nut_joint, $correction_alpha, $correction_beta, $blow_by, $min_eng_speed_lo,
         $pulley_distance, '$fic_standard', $fic_actual_left, $fic_actual_right, $fic_before_test_left,
         $fic_before_test_right, $fic_after_test_left, $fic_after_test_right, $belt_tension_left,
-        $belt_tension_right, '$noted', '$operator_test', $foto_engine
+        $belt_tension_right, '$noted', '$operator_test', $foto_engine_1, $foto_engine_2, $foto_engine_3
     )";
 
     if (mysqli_query($koneksi, $query_utama)) {
@@ -158,23 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // 9. KIRIM NOTIFIKASI EMAIL KE FOREMAN
-        if (file_exists(__DIR__ . '/vendor/autoload.php')) {
-            include_once 'kirim_notif_email.php';
-            try {
-                notifSubmitTestRunning(
-                    $koneksi,
-                    $_POST['engine_no'],
-                    $_POST['engine_model'],
-                    $_SESSION['nama_lengkap'],
-                    date('d/m/Y', strtotime($_POST['test_date']))
-                );
-            } catch (Exception $e) {
-                error_log("Email error: " . $e->getMessage());
-            }
-        }
-
-        // 10. REDIRECT dengan pesan sukses
+        // 9. REDIRECT dengan pesan sukses
         header("location:index.php?tr_success=1");
         exit();
 

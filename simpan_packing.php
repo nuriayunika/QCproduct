@@ -6,20 +6,21 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
 include 'koneksi.php';
 
 $role_s   = strtolower(trim($_SESSION['role']));
-$is_op_pk = strpos($role_s, 'packing') !== false || $role_s === 'operator';
+$is_op_pk = strpos($role_s, 'packing') !== false || strpos($role_s, 'foreman') !== false || $role_s === 'operator';
 if (!$is_op_pk) {
     die("Akses ditolak.");
 }
 
-$engine_no    = mysqli_real_escape_string($koneksi, $_POST['engine_no']    ?? '');
-$engine_model = mysqli_real_escape_string($koneksi, $_POST['engine_model'] ?? '');
-$operator     = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
+$engine_no    = mysqli_real_escape_string($koneksi, $_POST['engine_no']      ?? '');
+$engine_model = mysqli_real_escape_string($koneksi, $_POST['engine_model']   ?? '');
+$operator     = mysqli_real_escape_string($koneksi, $_POST['operator_name']  ?? $_SESSION['nama_lengkap']);
+$dicatat_oleh = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
 $pack_date    = date('Y-m-d');
 $noted        = mysqli_real_escape_string($koneksi, $_POST['noted'] ?? '');
 
 // 1. Insert header
-$sql_header = "INSERT INTO packing_data (engine_no, engine_model, operator_name, pack_date, noted)
-               VALUES ('$engine_no', '$engine_model', '$operator', '$pack_date', '$noted')";
+$sql_header = "INSERT INTO packing_data (engine_no, engine_model, operator_name, dicatat_oleh, pack_date, noted)
+               VALUES ('$engine_no', '$engine_model', '$operator', '$dicatat_oleh', '$pack_date', '$noted')";
 if (!mysqli_query($koneksi, $sql_header)) {
     die("Error: " . mysqli_error($koneksi));
 }
