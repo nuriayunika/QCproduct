@@ -332,8 +332,6 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             break;
         }
     }
-    // Supervisor & Manager bisa download semua PDF meski tidak ada di level approval modul
-    $canView = (strpos($role, 'supervisor') !== false || strpos($role, 'manager') !== false);
 
     // Cek tabel data utama ada
     $tblCheck = mysqli_query($koneksi, "SHOW TABLES LIKE '$dataTable'");
@@ -378,7 +376,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 <th>Tgl Submit</th>
                 <th>Pipeline Approval</th>
                 <th>Status</th>
-                <?php if($canApprove || $canView): ?><th style="width:190px;">Aksi</th><?php endif; ?>
+                <?php if($canApprove): ?><th style="width:190px;">Aksi</th><?php endif; ?>
             </tr>
         </thead>
         <tbody>
@@ -469,23 +467,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 </td>
 
                 <!-- Tombol aksi -->
-                <?php if ($canApprove || $canView): ?>
+                <?php if ($canApprove): ?>
                 <td class="text-center">
-                    <?php if ($canView && !$canApprove):
-                        // Supervisor/Manager: hanya tampilkan tombol Download PDF jika sudah approved semua level
-                        $modul_pdf = $stage === 'Test_Running' ? 'test_running' : ($stage === 'Final_Inspection' ? 'final_inspection' : 'packing');
-                        if ($finalStatus === 'Approved'): ?>
-                        <a href="download_pdf.php?id=<?php echo $recordId; ?>&modul=<?php echo $modul_pdf; ?>"
-                           class="btn btn-sm fw-bold" target="_blank"
-                           style="background:#7B1D1D;color:#fff;border:none;font-size:10px;padding:2px 8px;border-radius:4px;">
-                            <i class="fa-solid fa-file-pdf me-1"></i>Download PDF
-                        </a>
-                    <?php else: ?>
-                        <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
-                            <i class="fa-solid fa-lock me-1"></i>Belum Selesai Approve
-                        </span>
-                    <?php endif; ?>
-                    <?php elseif ($myStatus === 'approved'): ?>
+                    <?php if ($myStatus === 'approved'): ?>
                         <div class="d-flex flex-column gap-1 align-items-center">
                             <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
                                 <i class="fa-solid fa-check me-1"></i>Sudah Approved
@@ -537,7 +521,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         <?php endwhile; ?>
         <?php if (!$found): ?>
             <tr>
-                <td colspan="<?php echo ($canApprove || $canView) ? 8 : 7; ?>" class="text-center text-muted py-5">
+                <td colspan="<?php echo $canApprove ? 8 : 7; ?>" class="text-center text-muted py-5">
                     <i class="fa-solid fa-inbox fa-2x mb-2 d-block"></i>
                     Belum ada data yang disubmit operator.
                 </td>
@@ -612,7 +596,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: TEST RUNNING ---- -->
 <div id="sec-test-running" class="module-section active-module">
     <div class="container-fluid pb-3">
-        <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)">
+        <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)" id="form-tr">
 
             <div class="card mb-3 tr-header-card">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
@@ -685,16 +669,15 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator Name</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control" style="font-size:12px;" name="operator_name" value="<?php echo $_SESSION['nama_lengkap']; ?>" readonly>
+                                    <input type="text" class="form-control" style="font-size:12px; background:#f7f7f7; color:#666;" name="operator_name"
+                                        value="<?php echo $op_area_tr ? $_SESSION['nama_lengkap'] : ''; ?>"
+                                        readonly>
                                 </div>
                             </div>
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Lube Oil</label>
                                 <div class="col-sm-7">
                                     <input type="text" name="lube_oil" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="Meditran SAE-40" readonly>
-                                    <input type="hidden" name="cont_power" id="cont_power_val">
-                                    <input type="hidden" name="max_power" id="max_power_val">
-                                    <input type="hidden" name="hi_idle_std" id="hi_idle_std_val">
                                 </div>
                             </div>
 
@@ -741,7 +724,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1 align-items-center">
                                 <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Hi Idle</label>
                                 <div class="col-sm-4">
-                                    <input type="text" id="lbl_hi_idle" class="form-control form-control-sm bg-light text-secondary text-center fw-bold" readonly placeholder="-">
+                                    <input type="text" name="hi_idle_std" id="lbl_hi_idle" class="form-control form-control-sm bg-light text-secondary text-center fw-bold" readonly placeholder="-">
                                 </div>
                                 <div class="col-sm-4">
                                     <input type="number" name="hi_idle_actual" class="form-control form-control-sm bg-white text-center">
@@ -1095,6 +1078,28 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             </div>
 
         </form>
+
+        <!-- SEARCH TEST RUNNING RESULT -->
+        <div class="card mb-3 shadow-sm">
+            <div class="card-header py-2 d-flex align-items-center gap-2" style="background:linear-gradient(135deg,#1a3a5c,#2563a8); border-radius:10px 10px 0 0;">
+                <i class="fa-solid fa-magnifying-glass text-white" style="font-size:14px;"></i>
+                <h6 class="m-0 fw-bold text-white" style="letter-spacing:0.5px;">CEK HASIL TEST RUNNING</h6>
+                <span class="ms-auto" style="font-size:11px; color:rgba(255,255,255,0.7);">Masukkan Engine No. untuk melihat hasil test</span>
+            </div>
+            <div class="card-body p-3">
+                <div class="d-flex gap-2 mb-3">
+                    <input type="text" id="search_tr_engine_no" class="form-control" placeholder="Ketik Engine No..." style="max-width:250px; font-size:13px;">
+                    <button type="button" class="btn fw-bold" onclick="searchTRResult()" style="background:#1a3a5c;color:#fff;font-size:13px;">
+                        <i class="fa-solid fa-search me-1"></i>Cek
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary fw-bold" onclick="clearTRSearch()" style="font-size:13px;">
+                        <i class="fa-solid fa-xmark me-1"></i>Reset
+                    </button>
+                </div>
+                <div id="tr_search_result" style="display:none;"></div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -1103,6 +1108,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: FINAL INSPECTION (placeholder) ---- -->
 <div id="sec-final-inspection" class="module-section">
     <div class="container-fluid pb-3">
+
         <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi">
 
             <!-- HEADER CARD -->
@@ -1151,7 +1157,8 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator</label>
                                 <div class="col-sm-7">
                                     <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
-                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>" readonly>
+                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>"
+                                           readonly>
                                 </div>
                             </div>
                         </div>
@@ -1291,7 +1298,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                     <input type="text" name="operator_name" class="form-control form-control-sm" style="font-size:12px;" placeholder="Nama operator packing...">
                                     <?php else: ?>
                                     <input type="text" name="operator_name" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
-                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>" readonly>
+                                           value="<?php echo $op_area_pk ? htmlspecialchars($_SESSION['nama_lengkap']) : ''; ?>" readonly>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1299,7 +1306,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Dicatat oleh</label>
                                 <div class="col-sm-7">
                                     <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
-                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>" readonly>
+                                           value="<?php echo $op_area_pk ? htmlspecialchars($_SESSION['nama_lengkap']) : ''; ?>"
+                                           readonly>
+
                                 </div>
                             </div>
                         </div>
@@ -1578,11 +1587,6 @@ $(document).ready(function(){
     }
     if (urlParams.get('tr_success') === '1') {
         showToast('success', 'Data Test Running berhasil disimpan!');
-        history.replaceState(null, '', window.location.pathname);
-    }
-    if (urlParams.get('tr_error') === 'duplikat') {
-        var en = urlParams.get('engine_no') || '';
-        showToast('danger', 'Engine No. ' + en + ' sudah ada di database!');
         history.replaceState(null, '', window.location.pathname);
     }
     if (urlParams.get('pk_success') === '1') {
@@ -1908,9 +1912,6 @@ $(document).ready(function(){
                     $('#cont_power').val(r.cont_power||'');
                     $('#max_power').val(r.max_power||'');
                     $('#lbl_hi_idle').val(r.hi_idle||'');
-                    $('#cont_power_val').val(r.cont_power||'');
-                    $('#max_power_val').val(r.max_power||'');
-                    $('#hi_idle_std_val').val(r.hi_idle||'');
                     $('#std_output_lbl').text(r.output||'-');
                     $('#std_torque_lbl').text(r.torque||'-');
                     $('#std_load_lbl').text(r.load||'-');
@@ -2215,6 +2216,185 @@ function loadPackingChecklist() {
 
 $(document).on('click', '#btn-packing', function(){ setTimeout(loadPackingChecklist, 100); });
 if (window.location.hash === '#packing') { $(document).ready(function(){ loadPackingChecklist(); }); }
+
+// Cek hasil test running (untuk operator FI) - mode LOOKUP: isi langsung ke form TR asli, readonly
+function searchTRResult() {
+    var engine_no = $('#search_tr_engine_no').val().trim();
+    if (!engine_no) { alert('Ketik Engine No. terlebih dahulu!'); return; }
+    var resultDiv = $('#tr_search_result');
+    resultDiv.html('<div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:#1a3a5c;"></div> Mencari...</div>').show();
+    $.ajax({
+        url: 'get_detail_approval.php',
+        type: 'POST',
+        data: { engine_no: engine_no },
+        dataType: 'json',
+        success: function(res) {
+            if (res.status !== 'ok') {
+                resultDiv.html('<div class="alert alert-warning mb-0"><i class="fa-solid fa-circle-info me-2"></i>' + (res.message || 'Data tidak ditemukan.') + '</div>');
+                return;
+            }
+            var r = res.row;
+            var $form = $('#form-tr');
+
+            // Kolom DECIMAL di MySQL selalu balik dengan nol di belakang koma sesuai scale-nya
+            // (mis. decimal(4,2) -> "1.00"). Fungsi ini membersihkannya jadi angka bersih tanpa
+            // mengubah field yang isinya teks campuran (mis. "4.8 kW/2600 rpm", "17.7°±0.7").
+            function cleanNum(val) {
+                if (val === null || val === undefined || val === '') return '';
+                var s = String(val).trim();
+                if (/^-?\d+(\.\d+)?$/.test(s)) {
+                    var n = parseFloat(s);
+                    return isNaN(n) ? s : String(n);
+                }
+                return s;
+            }
+
+            // Isi field form TR asli satu-satu berdasarkan attribute name, lalu kunci jadi readonly
+            $.each(r, function(key, val) {
+                var $field = $form.find('[name="' + key + '"]');
+                if ($field.length === 0) return; // field ini tidak ada di form (mis. id, created_at)
+                var tag = $field.prop('tagName');
+                var type = ($field.attr('type') || '').toLowerCase();
+                if (type === 'file') return; // foto tidak bisa diisi ulang lewat JS
+
+                $field.val(cleanNum(val));
+                if (tag === 'SELECT') {
+                    $field.prop('disabled', true);
+                    $field.addClass('tr-lookup-locked').css({ background: '#f7f7f7', color: '#666', opacity: '1', pointerEvents: 'none' });
+                } else {
+                    $field.prop('readonly', true);
+                    $field.addClass('tr-lookup-locked').css({ background: '#f7f7f7', color: '#666' });
+                }
+            });
+
+            // Isi + kunci dropdown checklist (Leakage/Assembly/Function of Component)
+            // dengan mencocokkan hidden chk_item[] ke item_name di data checklist hasil lookup
+            if (res.checklist && res.checklist.length > 0) {
+                $form.find('select[name="chk_val[]"]').each(function() {
+                    var $sel = $(this);
+                    var $row = $sel.closest('div');
+                    var itemName = $row.find('input[name="chk_item[]"]').val();
+                    var match = res.checklist.find(function(c) { return c.item_name === itemName; });
+                    if (match) {
+                        $sel.val(match.jawaban);
+                    }
+                    $sel.prop('disabled', true).addClass('tr-lookup-locked').css({ background: '#f7f7f7', color: '#666', opacity: '1', pointerEvents: 'none' });
+                });
+            }
+
+            // Tampilkan foto engine (base64) di preview, tanpa mengisi input file asli (dibatasi browser demi keamanan)
+            if (res.foto && res.foto.length > 0) {
+                for (var fi = 0; fi < 3; fi++) {
+                    var src = res.foto[fi];
+                    var $preview = $('#preview_foto_engine_' + (fi + 1));
+                    if (src) {
+                        $preview.find('img').attr('src', src);
+                        $preview.show();
+                    } else {
+                        $preview.hide().find('img').attr('src', '');
+                    }
+                    // Tandai input file sebagai bagian dari mode lookup (visual saja, file input tidak bisa di-lock isinya)
+                    $form.find('#foto_engine_' + (fi + 1)).prop('disabled', true).addClass('tr-lookup-locked').css({ opacity: '0.6' });
+                }
+            }
+
+            // Isi label standar dari master spec (Output/Torque/Load/Fuel/Sd/Exhaust/Oil Temp/LO/Correct CO/Speed)
+            // sesuai engine_model hasil lookup. TIDAK menimpa cont_power/max_power/hi_idle_std/fic_standard
+            // karena nilai-nilai itu sudah benar dari data TR yang tersimpan (ground truth saat test dilakukan).
+            if (r.engine_model) {
+                $.ajax({
+                    url: 'ambil_master_spec.php',
+                    type: 'POST',
+                    data: { engine_model: r.engine_model },
+                    dataType: 'json',
+                    success: function(spec) {
+                        $('#std_output_lbl').text(spec.output || '-');
+                        $('#std_torque_lbl').text(spec.torque || '-');
+                        $('#std_load_lbl').text(spec.load || '-');
+                        $('#std_fuel_mm3_lbl').text(spec.fuel_mm3 || '-');
+                        $('#std_fuel_gkwh_lbl').text(spec.fuel_gkwh || '-');
+                        $('#std_sd_lbl').text(spec.sd_bsu || '-');
+                        $('#lbl_ex_r1').text(spec.exhaust || '-');
+                        $('#lbl_oil_r1').text(spec.oil_temp || '-');
+                        $('#lbl_lo_r1').text(spec.lo || '-');
+                        $('#std_correct_co_lbl').text(spec.correct_co || '-');
+                        $('#lbl_speed1').text(spec.speed1 || '-');
+                        $('#lbl_speed2').text(spec.speed2 || '-');
+                        $('#lbl_speed3').text(spec.speed3 || '-');
+                    }
+                });
+            }
+
+            // Tandai form dalam mode lookup + kunci tombol submit
+            $form.addClass('tr-lookup-mode');
+            $form.find('.btn-submit-tr').prop('disabled', true).html('<i class="fa-solid fa-lock me-2"></i>MODE LIHAT - DATA SUDAH TERSIMPAN');
+
+            // Scroll ke form biar user langsung lihat hasilnya
+            $('html, body').animate({ scrollTop: $form.offset().top - 80 }, 300);
+
+            // Status approval + checklist tetap ditampilkan di bawah kolom pencarian
+            var statusColor = res.approved ? '#198754' : '#ffc107';
+            var statusText = res.approved ? '✓ Sudah Approved Foreman' : '⏳ Belum Approved';
+            var html = '<div class="alert alert-success mb-2 py-2"><i class="fa-solid fa-circle-check me-2"></i>Data Test Running untuk Engine No. <b>' + r.engine_no + '</b> sudah diisikan ke form di atas (mode lihat, tidak bisa diedit).</div>';
+            html += '<div class="mb-2 p-2 rounded" style="background:#f8f9fa;font-size:12px;">';
+            html += '<span class="fw-bold" style="color:' + statusColor + ';">' + statusText + '</span>';
+            html += '</div>';
+            resultDiv.html(html);
+        },
+        error: function() {
+            resultDiv.html('<div class="alert alert-danger mb-0">Gagal menghubungi server.</div>');
+        }
+    });
+}
+
+function clearTRSearch() {
+    $('#search_tr_engine_no').val('');
+    $('#tr_search_result').hide().html('');
+
+    // Kembalikan form TR ke kondisi form baru (kosong, bisa diisi lagi)
+    var $form = $('#form-tr');
+    $form.removeClass('tr-lookup-mode');
+    $form[0].reset();
+
+    // Buka kunci SEMUA field yang ditandai locked pas mode lookup (pakai class marker, bukan cocokin teks CSS,
+    // supaya nggak gagal kalau browser menormalkan warna hex jadi rgb()).
+    $form.find('.tr-lookup-locked').each(function() {
+        var $f = $(this);
+        $f.prop('readonly', false).prop('disabled', false)
+          .removeClass('tr-lookup-locked')
+          .css({ background: '', color: '', opacity: '', pointerEvents: '' });
+    });
+
+    // Jaga-jaga: pastikan semua input/select lain (di luar yang locked) juga nggak ada sisa readonly/disabled
+    $form.find('input, select').each(function() {
+        var $f = $(this);
+        var type = ($f.attr('type') || '').toLowerCase();
+        if (type === 'file') return;
+        $f.prop('readonly', false).prop('disabled', false);
+    });
+
+    // Sembunyikan & kosongkan preview foto (bukan form field, tidak ikut ter-reset otomatis)
+    for (var fi = 1; fi <= 3; fi++) {
+        $('#preview_foto_engine_' + fi).hide().find('img').attr('src', '');
+    }
+
+    // Kembalikan label standar master spec ke placeholder '-' (bukan form field, tidak ikut ter-reset otomatis)
+    $('#std_output_lbl, #std_torque_lbl, #std_load_lbl, #std_fuel_mm3_lbl, #std_fuel_gkwh_lbl, #std_sd_lbl, #lbl_ex_r1, #lbl_oil_r1, #lbl_lo_r1, #std_correct_co_lbl, #lbl_speed1, #lbl_speed2, #lbl_speed3').text('-');
+
+    // Field yang memang defaultnya readonly-by-design (bukan hasil lookup) dikunci lagi sesuai desain form aslinya
+    $form.find('input[name="test_name"], input[name="operator_name"], input[name="lube_oil"], input[name="fuel_type"], input#cont_power, input#max_power, input#lbl_hi_idle, input#fic_standard')
+         .prop('readonly', true).css({ background: '#f7f7f7', color: '#666' });
+    // operator_name diisi ulang otomatis sesuai user yang sedang login (bukan dikosongkan)
+    <?php if ($op_area_tr): ?>
+    $form.find('input[name="operator_name"]').val(<?php echo json_encode($_SESSION['nama_lengkap']); ?>);
+    <?php endif; ?>
+    $form.find('.btn-submit-tr').prop('disabled', false).html('<i class="fa-solid fa-paper-plane me-2"></i>SIMPAN DATA TEST RUN');
+}
+
+// Enter key untuk search
+$(document).on('keypress', '#search_tr_engine_no', function(e) {
+    if (e.which === 13) searchTRResult();
+});
 
 // Preview foto engine 1, 2, 3
 $(document).on('change', '.foto-engine-input', function(){
