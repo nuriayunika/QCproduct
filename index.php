@@ -712,13 +712,13 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1 align-items-center">
                                 <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Limiter Act.</label>
                                 <div class="col-sm-8">
-                                    <input type="text" name="limiter_actual" class="form-control form-control-sm" style="font-size:12px;">
+                                    <input type="text" name="limiter_actual" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="-" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
                                 <label class="col-sm-4 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Limiter After Set</label>
                                 <div class="col-sm-8">
-                                    <input type="text" name="limiter_after_set" class="form-control form-control-sm" style="font-size:12px;">
+                                    <input type="text" name="limiter_after_set" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="-" readonly>
                                 </div>
                             </div>
                             <div class="row mb-1 align-items-center">
