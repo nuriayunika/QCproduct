@@ -139,7 +139,7 @@ function getEmailOperator($koneksi, $operator_name) {
  */
 function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $approved_by, $reason = '') {
 
-    if ($action !== 'approve') return;
+    if ($action !== 'approve') return 'skipped: bukan action approve';
 
     $next_role  = null;
     $next_label = '';
@@ -154,11 +154,11 @@ function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $ap
         $next_role  = 'assistant_manager';
         $next_label = 'Asst. Manager';
     } else {
-        return;
+        return 'skipped: stage/role ini tidak butuh notifikasi (mis. Test Running = selesai di Foreman)';
     }
 
     $to = getEmailsByRole($koneksi, $next_role);
-    if (empty($to)) return;
+    if (empty($to)) return "skipped: tidak ada email terdaftar untuk role '$next_role'";
 
     $tbl_map = [
         'Test_Running'     => 'result_test_run',
@@ -167,7 +167,7 @@ function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $ap
     ];
     $tbl  = $tbl_map[$stage] ?? 'result_test_run';
     $data = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM `$tbl` WHERE id = $test_run_id"));
-    if (!$data) return;
+    if (!$data) return 'skipped: data record tidak ditemukan';
 
     $engine_no    = $data['engine_no']     ?? '-';
     $engine_model = $data['engine_model']  ?? '-';
@@ -193,5 +193,6 @@ function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $ap
         <a href='http://localhost/QCproduct/' class='btn'>Buka Dashboard Approval</a>
     ";
 
-    kirimEmail($to, $subject, $body);
+    $sent = kirimEmail($to, $subject, $body);
+    return $sent ? "terkirim ke: " . implode(', ', $to) : "GAGAL kirim ke: " . implode(', ', $to) . ' (cek BREVO_API_KEY / log error)';
 }

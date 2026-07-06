@@ -66,6 +66,16 @@ $is_approver = (
             --white:      #ffffff;
         }
 
+        /* Hilangkan panah atas/bawah (spinner) di semua input angka */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
         body { background-color: #ebebeb; font-family: 'Segoe UI', sans-serif; }
 
         .module-section      { display: none; }
@@ -470,19 +480,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 <?php if ($canApprove): ?>
                 <td class="text-center">
                     <?php if ($myStatus === 'approved'): ?>
-                        <div class="d-flex flex-column gap-1 align-items-center">
-                            <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
-                                <i class="fa-solid fa-check me-1"></i>Sudah Approved
-                            </span>
-                            <?php 
-                            $modul_pdf = $stage === 'Test_Running' ? 'test_running' : ($stage === 'Final_Inspection' ? 'final_inspection' : 'packing');
-                            ?>
-                            <a href="download_pdf.php?id=<?php echo $recordId; ?>&modul=<?php echo $modul_pdf; ?>"
-                               class="btn btn-sm fw-bold" target="_blank"
-                               style="background:#7B1D1D;color:#fff;border:none;font-size:10px;padding:2px 8px;border-radius:4px;">
-                                <i class="fa-solid fa-file-pdf me-1"></i>Download PDF
-                            </a>
-                        </div>
+                        <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
+                            <i class="fa-solid fa-check me-1"></i>Sudah Approved
+                        </span>
                     <?php elseif ($myStatus === 'rejected'): ?>
                         <span class="badge badge-rejected px-2 py-1" style="font-size:10px;">
                             <i class="fa-solid fa-xmark me-1"></i>Sudah Rejected
@@ -596,7 +596,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: TEST RUNNING ---- -->
 <div id="sec-test-running" class="module-section active-module">
     <div class="container-fluid pb-3">
-        <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)" id="form-tr">
+        <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)" id="form-tr" autocomplete="off">
 
             <div class="card mb-3 tr-header-card">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
@@ -1109,7 +1109,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-final-inspection" class="module-section">
     <div class="container-fluid pb-3">
 
-        <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi">
+        <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi" autocomplete="off">
 
             <!-- HEADER CARD -->
             <div class="card mb-3 shadow-sm">
@@ -1156,9 +1156,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Operator</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
-                                           value="<?php echo htmlspecialchars($_SESSION['nama_lengkap']); ?>"
-                                           readonly>
+                                    <input type="text" id="fi_operator_display" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;"
+                                           value="<?php echo $op_area_fi ? htmlspecialchars($_SESSION['nama_lengkap']) : ''; ?>"
+                                           autocomplete="off" readonly>
                                 </div>
                             </div>
                         </div>
@@ -1252,7 +1252,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: PACKING (placeholder) ---- -->
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
-        <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk">
+        <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk" autocomplete="off">
             <div class="card mb-3 shadow-sm">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
                     <div class="d-flex align-items-center gap-2 py-2 px-2">
@@ -1552,6 +1552,21 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// --- Safety-net: pastikan field Operator FI kosong kalau user bukan area FI ---
+// (jaga-jaga terhadap autofill browser yang bisa nimpa value="" bawaan server)
+<?php if (!$op_area_fi): ?>
+(function() {
+    var clearFiOperator = function() {
+        var el = document.getElementById('fi_operator_display');
+        if (el) el.value = '';
+    };
+    clearFiOperator();
+    document.addEventListener('DOMContentLoaded', clearFiOperator);
+    window.addEventListener('load', clearFiOperator);
+    setTimeout(clearFiOperator, 300); // jaga-jaga autofill browser yang telat jalan
+})();
+<?php endif; ?>
+
 // --- Auto-switch tab dari URL hash atau query param ---
 $(document).ready(function(){
     // Restore mode approval Foreman setelah reload
@@ -1750,12 +1765,15 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += infoItem('Test Name', row.test_name);
             html += infoItem('Lube Oil', row.lube_oil);
             html += infoItem('Fuel', row.fuel_type);
+            html += infoItem('Cont. Power', row.cont_power);
+            html += infoItem('Max Power', row.max_power);
             html += infoItem('Fuel sp. Gravity', row.fuel_sp_gravity);
             html += infoItem('Dry Temp (°C)', row.dry_temp);
             html += infoItem('Wet Temp (°C)', row.wet_temp);
             html += infoItem('Atm. Press', row.atmosphere_press);
             html += infoItem('Limiter Actual', row.limiter_actual);
             html += infoItem('Limiter After Set', row.limiter_after_set);
+            html += infoItem('Hi Idle (std)', row.hi_idle_std);
             html += infoItem('Hi Idle Actual', row.hi_idle_actual);
             html += infoItem('Eng. Speed Max', row.eng_speed_max);
             html += infoItem('Eng. Speed Min', row.eng_speed_min);
@@ -1777,13 +1795,16 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
 
         // ---- CHECKLIST (muncul setelah header, sebelum performance) ----
         if (checklist && checklist.length > 0) {
+            var hasInlineFoto = (modul === 'final_inspection' || modul === 'packing');
             html += '<div class="fw-bold mb-2" style="font-size:12px;color:#7B1D1D;"><i class="fa-solid fa-list-check me-1"></i>Visual Inspection Checklist</div>';
             html += '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:11px;">';
             html += '<thead><tr style="background:linear-gradient(90deg,#5a1414,#7B1D1D);color:#fff;">';
             html += '<th style="width:30px;">#</th><th>Item</th>';
             if (modul === 'test_running') html += '<th style="width:130px;">Kategori</th>';
             if (modul !== 'test_running') html += '<th>Parameter</th>';
-            html += '<th style="width:70px;">Hasil</th></tr></thead><tbody>';
+            html += '<th style="width:70px;">Hasil</th>';
+            if (hasInlineFoto) html += '<th style="width:70px;">Foto</th>';
+            html += '</tr></thead><tbody>';
             checklist.forEach(function(c, i) {
                 var result = c.jawaban || c.result || '-';
                 var resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
@@ -1791,13 +1812,23 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
                 html += '<td>' + (c.item_name || c.item || '-') + '</td>';
                 if (modul === 'test_running') html += '<td>' + (c.kategori || '-') + '</td>';
                 if (modul !== 'test_running') html += '<td style="font-size:10px;color:#666;">' + (c.parameter || '') + '</td>';
-                html += '<td class="text-center fw-bold" style="color:' + resultColor + ';">' + result + '</td></tr>';
+                html += '<td class="text-center fw-bold" style="color:' + resultColor + ';">' + result + '</td>';
+                if (hasInlineFoto) {
+                    html += '<td class="text-center">';
+                    if (c.foto_base64) {
+                        html += '<img src="' + c.foto_base64 + '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer;" onclick="window.open(this.src)">';
+                    } else {
+                        html += '<span style="color:#ccc;">-</span>';
+                    }
+                    html += '</td>';
+                }
+                html += '</tr>';
             });
             html += '</tbody></table></div>';
         }
 
-        // ---- FOTO ENGINE (setelah checklist) ----
-        if (foto && foto.length > 0) {
+        // ---- FOTO ENGINE (khusus test_running, gallery terpisah karena bukan per-item) ----
+        if (modul === 'test_running' && foto && foto.length > 0) {
             html += '<div class="mb-3"><div class="fw-bold mb-2" style="font-size:12px;color:#7B1D1D;"><i class="fa-solid fa-camera me-1"></i>Foto Engine</div>';
             html += '<div class="d-flex gap-2 flex-wrap">';
             foto.forEach(function(src, i) {
@@ -1820,24 +1851,24 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '<th>Actual Nm</th><th>Corrected kW</th><th>Torque Nm</th><th>Load kgm</th><th>cc/30sec</th><th>mm³/st</th><th>g/kWh</th><th>Sd BSU</th>';
             html += '<th>Exhaust°C</th><th>Oil°C</th><th>LO Mpa</th><th>Intake kPa</th><th>Exhaust kPa</th><th>NOx</th><th>CO</th><th>CO2%</th><th>O2%</th><th>Correct CO</th>';
             html += '</tr></thead><tbody>';
-            html += '<tr><td>1</td><td>' + (row.r1_eng_speed||row.eng_speed_max||'-') + '</td>';
-            html += '<td>' + (row.r1_actual_nm||'-') + '</td><td>' + (row.r1_corrected_kw||'-') + '</td>';
-            html += '<td>' + (row.r1_torque_nm||'-') + '</td><td>' + (row.r1_load_kgm||'-') + '</td>';
-            html += '<td>' + (row.r1_fuel_cc_30sec||'-') + '</td><td>' + (row.r1_fuel_mm3_st||'-') + '</td>';
-            html += '<td>' + (row.r1_fuel_g_kwh||'-') + '</td><td>' + (row.r1_sd_bsu||'-') + '</td>';
-            html += '<td>' + (row.r1_temp_exhaust||'-') + '</td><td>' + (row.r1_temp_oil||'-') + '</td>';
-            html += '<td>' + (row.r1_lo_press||'-') + '</td><td>' + (row.r1_intake_press||'-') + '</td>';
-            html += '<td>' + (row.r1_exhaust_press||'-') + '</td><td>' + (row.r1_nox||'-') + '</td>';
-            html += '<td>' + (row.r1_co||'-') + '</td><td>' + (row.r1_co2||'-') + '</td>';
-            html += '<td>' + (row.r1_o2||'-') + '</td><td>-</td></tr>';
-            html += '<tr><td>2</td><td>' + (row.eng_speed_min||'-') + '</td>';
-            html += '<td>' + (row.r2_actual_nm||'-') + '</td><td>' + (row.r2_corrected_kw||'-') + '</td>';
+            html += '<tr><td>1</td><td>' + (cleanNum(row.r1_eng_speed)||cleanNum(row.eng_speed_max)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_actual_nm)||'-') + '</td><td>' + (cleanNum(row.r1_corrected_kw)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_torque_nm)||'-') + '</td><td>' + (cleanNum(row.r1_load_kgm)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_fuel_cc_30sec)||'-') + '</td><td>' + (cleanNum(row.r1_fuel_mm3_st)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_fuel_g_kwh)||'-') + '</td><td>' + (cleanNum(row.r1_sd_bsu)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_temp_exhaust)||'-') + '</td><td>' + (cleanNum(row.r1_temp_oil)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_lo_press)||'-') + '</td><td>' + (cleanNum(row.r1_intake_press)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_exhaust_press)||'-') + '</td><td>' + (cleanNum(row.r1_nox)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_co)||'-') + '</td><td>' + (cleanNum(row.r1_co2)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r1_o2)||'-') + '</td><td>-</td></tr>';
+            html += '<tr><td>2</td><td>' + (cleanNum(row.eng_speed_min)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r2_actual_nm)||'-') + '</td><td>' + (cleanNum(row.r2_corrected_kw)||'-') + '</td>';
             html += '<td colspan="6" style="background:#eee;"></td>';
-            html += '<td>' + (row.r2_temp_exhaust||'-') + '</td><td>-</td>';
-            html += '<td>' + (row.r2_lo_press||'-') + '</td><td>' + (row.r2_intake_press||'-') + '</td>';
-            html += '<td>' + (row.r2_exhaust_press||'-') + '</td><td>' + (row.r2_nox||'-') + '</td>';
-            html += '<td>' + (row.r2_co||'-') + '</td><td>' + (row.r2_co2||'-') + '</td>';
-            html += '<td>' + (row.r2_o2||'-') + '</td><td>' + (row.r2_correct_co||'-') + '</td></tr>';
+            html += '<td>' + (cleanNum(row.r2_temp_exhaust)||'-') + '</td><td>-</td>';
+            html += '<td>' + (cleanNum(row.r2_lo_press)||'-') + '</td><td>' + (cleanNum(row.r2_intake_press)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r2_exhaust_press)||'-') + '</td><td>' + (cleanNum(row.r2_nox)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r2_co)||'-') + '</td><td>' + (cleanNum(row.r2_co2)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r2_o2)||'-') + '</td><td>' + (cleanNum(row.r2_correct_co)||'-') + '</td></tr>';
             html += '</tbody></table></div>';
 
             // Additional Data
@@ -1845,26 +1876,26 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:10px;">';
             html += '<thead><tr style="background:#5a1414;color:#fff;"><th>Eng.Speed</th><th>Torque Nm</th><th>Coolant°C</th><th>Curr.Glow</th><th>Curr.Wire</th><th>Box LO</th><th>Air Intake</th><th>Bolt CW</th><th>Inj.Injector</th><th>Inj.FOP</th><th>Nut Joint</th></tr></thead>';
             html += '<tbody><tr>';
-            html += '<td>' + (row.eng_speed_max||'-') + '</td><td>' + (row.r3_torque_nm||'-') + '</td>';
-            html += '<td>' + (row.r3_coolant_temp||'-') + '</td><td>' + (row.r3_current_glow||'-') + '</td>';
-            html += '<td>' + (row.r3_current_wire||'-') + '</td><td>' + (row.r3_torque_switch_lo||'-') + '</td>';
-            html += '<td>' + (row.r3_torque_pipe_air||'-') + '</td><td>' + (row.r3_torque_bolt_cw||'-') + '</td>';
-            html += '<td>' + (row.r3_torque_injection_injector||'-') + '</td><td>' + (row.r3_torque_injection_fop||'-') + '</td>';
-            html += '<td>' + (row.r3_torque_nut_joint||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.eng_speed_max)||'-') + '</td><td>' + (cleanNum(row.r3_torque_nm)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_coolant_temp)||'-') + '</td><td>' + (cleanNum(row.r3_current_glow)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_current_wire)||'-') + '</td><td>' + (cleanNum(row.r3_torque_switch_lo)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_torque_pipe_air)||'-') + '</td><td>' + (cleanNum(row.r3_torque_bolt_cw)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_torque_injection_injector)||'-') + '</td><td>' + (cleanNum(row.r3_torque_injection_fop)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_torque_nut_joint)||'-') + '</td>';
             html += '</tr></tbody></table></div>';
 
             // Correction & FIC
             html += '<div class="row g-2 mt-2">';
             html += infoItem('FIC Standard', row.fic_standard);
-            html += infoItem('FIC Actual', (row.fic_actual_left||'-') + ' / ' + (row.fic_actual_right||'-'));
-            html += infoItem('FIC Before Test', (row.fic_before_test_left||'-') + ' / ' + (row.fic_before_test_right||'-'));
-            html += infoItem('FIC After Test', (row.fic_after_test_left||'-') + ' / ' + (row.fic_after_test_right||'-'));
-            html += infoItem('Belt Tension', (row.belt_tension_left||'-') + ' / ' + (row.belt_tension_right||'-') + ' mm');
+            html += infoItem('FIC Actual', (cleanNum(row.fic_actual_left)||'-') + ' / ' + (cleanNum(row.fic_actual_right)||'-'));
+            html += infoItem('FIC Before Test', (cleanNum(row.fic_before_test_left)||'-') + ' / ' + (cleanNum(row.fic_before_test_right)||'-'));
+            html += infoItem('FIC After Test', (cleanNum(row.fic_after_test_left)||'-') + ' / ' + (cleanNum(row.fic_after_test_right)||'-'));
+            html += infoItem('Belt Tension', (cleanNum(row.belt_tension_left)||'-') + ' / ' + (cleanNum(row.belt_tension_right)||'-') + ' mm');
             html += infoItem('Correction α', row.correction_alpha);
             html += infoItem('Correction β', row.correction_beta);
             html += infoItem('Blow By', row.blow_by);
-            html += infoItem('Min Eng.Speed LO', (row.min_eng_speed_lo||'-') + ' rpm');
-            html += infoItem('Pulley Distance', (row.pulley_distance||'-') + ' mm');
+            html += infoItem('Min Eng.Speed LO', (cleanNum(row.min_eng_speed_lo)||'-') + ' rpm');
+            html += infoItem('Pulley Distance', (cleanNum(row.pulley_distance)||'-') + ' mm');
             html += '</div>';
         }
 
@@ -1883,8 +1914,22 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
     });
 }
 
+// Kolom DECIMAL di MySQL selalu balik dengan nol di belakang koma sesuai scale-nya
+// (mis. decimal(4,2) -> "1.00"). Fungsi ini membersihkannya jadi angka bersih tanpa
+// mengubah field yang isinya teks campuran (mis. "4.8 kW/2600 rpm", "16.5°±0.7")
+// ATAU angka yang memang sengaja diketik pakai koma/desimal beneran (mis. "16.5" tetap "16.5").
+function cleanNum(val) {
+    if (val === null || val === undefined || val === '') return val;
+    var s = String(val).trim();
+    if (/^-?\d+(\.\d+)?$/.test(s)) {
+        var n = parseFloat(s);
+        return isNaN(n) ? s : String(n);
+    }
+    return s;
+}
+
 function infoItem(label, value) {
-    return '<div class="col-md-3 col-6"><div style="font-size:10px;color:#7B1D1D;font-weight:600;">' + label + '</div><div style="font-size:12px;color:#333;">' + (value||'-') + '</div></div>';
+    return '<div class="col-md-3 col-6"><div style="font-size:10px;color:#7B1D1D;font-weight:600;">' + label + '</div><div style="font-size:12px;color:#333;">' + (cleanNum(value)||'-') + '</div></div>';
 }
 
 // --- Toast ---

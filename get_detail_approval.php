@@ -6,6 +6,23 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
 }
 include 'koneksi.php';
 
+// Kolom DECIMAL di MySQL selalu balik dengan nol di belakang koma sesuai scale-nya
+// (mis. decimal(4,2) -> "1.00"). Fungsi ini membersihkannya jadi angka bersih tanpa
+// mengubah field yang isinya teks campuran (mis. "4.8 kW/2600 rpm", "16.5°±0.7") atau
+// angka desimal yang memang beneran (mis. "16.5" tetap "16.5", bukan dibulatkan).
+function cleanNum($v) {
+    if ($v === null || $v === '') return $v;
+    $s = trim((string) $v);
+    if (preg_match('/^-?\d+(\.\d+)?$/', $s)) {
+        return rtrim(rtrim(sprintf('%.10F', $s), '0'), '.') ?: '0';
+    }
+    return $s;
+}
+function cleanRow($row) {
+    foreach ($row as $k => $v) $row[$k] = cleanNum($v);
+    return $row;
+}
+
 // ===== MODE LOOKUP BY ENGINE_NO (untuk fitur Search TR di form Final Inspection) =====
 // Dipanggil via POST { engine_no: '...' } tanpa id/modul.
 if (!empty($_POST['engine_no'])) {
@@ -54,7 +71,7 @@ if (!empty($_POST['engine_no'])) {
 
     echo json_encode([
         'status'    => 'ok',
-        'row'       => $row,
+        'row'       => cleanRow($row),
         'checklist' => $checklist,
         'approved'  => $approved,
         'foto'      => $foto,
@@ -94,19 +111,34 @@ if ($modul === 'test_running') {
     if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist[] = $r;
 }
 
-// Foto engine (base64 untuk ditampilkan di modal)
+// Foto (base64 untuk ditampilkan di modal)
+// - test_running: 3 foto tetap di kolom foto_engine_1/2/3 pada result_test_run -> gallery terpisah
+// - final_inspection / packing: foto per-item checklist -> ditempel langsung ke masing-masing
+//   item checklist (key 'foto_base64'), supaya bisa ditampilkan di samping item-nya, bukan gallery
 $foto = [];
-for ($f = 1; $f <= 3; $f++) {
-    $path = $row['foto_engine_'.$f] ?? '';
-    if ($path && file_exists($path)) {
-        $type = mime_content_type($path);
-        $foto[] = 'data:'.$type.';base64,'.base64_encode(file_get_contents($path));
+if ($modul === 'test_running') {
+    for ($f = 1; $f <= 3; $f++) {
+        $path = $row['foto_engine_'.$f] ?? '';
+        if ($path && file_exists($path)) {
+            $type = mime_content_type($path);
+            $foto[] = 'data:'.$type.';base64,'.base64_encode(file_get_contents($path));
+        }
+    }
+} elseif ($modul === 'final_inspection' || $modul === 'packing') {
+    foreach ($checklist as $idx => $c) {
+        $path = $c['foto_path'] ?? '';
+        if ($path && file_exists($path)) {
+            $type = mime_content_type($path);
+            $checklist[$idx]['foto_base64'] = 'data:'.$type.';base64,'.base64_encode(file_get_contents($path));
+        } else {
+            $checklist[$idx]['foto_base64'] = null;
+        }
     }
 }
 
 echo json_encode([
     'status'    => 'ok',
-    'row'       => $row,
+    'row'       => cleanRow($row),
     'checklist' => $checklist,
     'foto'      => $foto,
     'modul'     => $modul,
