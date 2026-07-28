@@ -42,7 +42,7 @@ function getCss() {
     .info-label { font-weight:bold; color:#7B1D1D; background:#fdf5f5; width:120px; }
     table.data-tbl { width:100%; border-collapse:collapse; font-size:7pt; margin-bottom:6px; }
     table.data-tbl th { background:#7B1D1D; color:#fff; padding:3px 4px; text-align:center; border:1px solid #5a1414; }
-    table.data-tbl th.th2 { background:#1a5c3a; }
+    table.data-tbl th.th2 { background:#7B1D1D; }
     table.data-tbl td { padding:2px 4px; border:1px solid #ccc; text-align:center; }
     table.data-tbl tr:nth-child(even) td { background:#fdf5f5; }
     .approval-box { display:table; width:100%; margin-top:10px; border-top:1px solid #ddd; padding-top:6px; }
@@ -72,7 +72,7 @@ function approvalBox($approvals, $levels) {
             $html .= '<div class="badge-approved">&#10003; APPROVED</div>';
             $html .= '<div class="approval-date">' . date('d/m/Y H:i', strtotime($apv['created_at'])) . '</div>';
         } else {
-            $html .= '<div style="color:#aaa;font-size:8pt;">Belum disetujui</div>';
+            $html .= '<div style="color:#aaa;font-size:8pt;">Not Approved Yet</div>';
         }
         $html .= '</div>';
     }
@@ -92,9 +92,9 @@ function getLogoB64() {
 function generateTRHtml($row, $checklist, $logo_b64, $koneksi) {
     $approvals = getApproval($koneksi, $row['id'], 'Test_Running');
     $html = '<div class="header-wrap">';
-    $html .= '<div class="header-logo"><img src="' . $logo_b64 . '"></div>';
+    $html .= $logo_b64 ? ('<div class="header-logo"><img src="' . $logo_b64 . '"></div>') : '';
     $html .= '<div class="header-info"><h1>PT. YANMAR DIESEL INDONESIA</h1><p>Quality Control Department - Engine Manufacturing</p></div>';
-    $html .= '<div class="header-meta">No. Dok: QCTR-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
+    $html .= '<div class="header-meta">Doc No: QCTR-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
     $html .= '<div class="section-title">TEST RUNNING REPORT</div>';
     // Ambil spec dari master
     $em = mysqli_real_escape_string($koneksi, $row['engine_model'] ?? '');
@@ -115,12 +115,23 @@ function generateTRHtml($row, $checklist, $logo_b64, $koneksi) {
         $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Type</th><th>Item</th><th>Result</th></tr></thead><tbody>';
         foreach ($checklist as $i => $c) {
             $res = $c['jawaban'] ?? '-';
-            $color = ($res === 'Yes' || $res === 'OK') ? '#198754' : '#dc3545';
+            $kategori = $c['kategori'] ?? '';
+            if ($kategori === 'Leakage Check') {
+                // Khusus Leakage Check: "No" = tidak ada kebocoran = bagus (hijau),
+                // "Yes" = ada kebocoran = masalah (merah) - kebalikan dari kategori lain.
+                $color = ($res === 'No') ? '#198754' : (($res === 'Yes') ? '#dc3545' : '#666');
+            } else {
+                $color = ($res === 'Yes' || $res === 'OK') ? '#198754' : '#dc3545';
+            }
             $html .= '<tr><td>' . ($i+1) . '</td><td>' . e($c['kategori'] ?? '') . '</td><td>' . e($c['item_name'] ?? '') . '</td>';
             $html .= '<td style="color:' . $color . ';font-weight:bold;">' . e($res) . '</td></tr>';
         }
         $html .= '</tbody></table>';
     }
+
+    // Paksa halaman baru sebelum tabel Data Performance, biar nggak kepotong
+    // di tengah tabel (baris 1 di satu halaman, baris 2 + header lagi di halaman lain).
+    $html .= '<pagebreak>';
 
     $html .= '<table class="data-tbl"><thead>';
     $html .= '<tr><th rowspan="3">No</th><th rowspan="3">Eng.Speed</th><th colspan="8">OUTPUT, TORQUE & FUEL (DATA 1)</th><th colspan="10" class="th2">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th></tr>';
@@ -134,28 +145,47 @@ function generateTRHtml($row, $checklist, $logo_b64, $koneksi) {
     $html .= '<table class="data-tbl"><thead><tr><th>Eng.Speed</th><th>Torque(Nm)</th><th>Coolant°C</th><th>Curr.Glow</th><th>Curr.Wire</th><th>Box LO</th><th>Air Intake</th><th>Bolt CW</th><th>Inj.Injector</th><th>Inj.FOP</th><th>Nut Joint</th><th>α</th><th>β</th><th>Blow By</th></tr></thead><tbody>';
     $html .= '<tr><td>' . val($row,'eng_speed_max') . '</td><td>' . val($row,'r3_torque_nm') . '</td><td>' . val($row,'r3_coolant_temp') . '</td><td>' . val($row,'r3_current_glow') . '</td><td>' . val($row,'r3_current_wire') . '</td><td>' . val($row,'r3_torque_switch_lo') . '</td><td>' . val($row,'r3_torque_pipe_air') . '</td><td>' . val($row,'r3_torque_bolt_cw') . '</td><td>' . val($row,'r3_torque_injection_injector') . '</td><td>' . val($row,'r3_torque_injection_fop') . '</td><td>' . val($row,'r3_torque_nut_joint') . '</td><td>' . val($row,'correction_alpha') . '</td><td>' . val($row,'correction_beta') . '</td><td>' . val($row,'blow_by') . '</td></tr>';
     $html .= '</tbody></table>';
-    // FIC
-    $html .= '<table class="info-table"><tr>';
-    $html .= '<td class="info-label">FIC Standard</td><td>' . val($row,'fic_standard') . '</td>';
-    $html .= '<td class="info-label">FIC Actual</td><td>' . val($row,'fic_actual_left') . ' / ' . val($row,'fic_actual_right') . '</td>';
-    $html .= '<td class="info-label">FIC Before Test</td><td>' . val($row,'fic_before_test_left') . ' / ' . val($row,'fic_before_test_right') . '</td>';
-    $html .= '<td class="info-label">FIC After Test</td><td>' . val($row,'fic_after_test_left') . ' / ' . val($row,'fic_after_test_right') . '</td>';
-    $html .= '</tr><tr>';
-    $html .= '<td class="info-label">Belt Tension</td><td>' . val($row,'belt_tension_left') . ' / ' . val($row,'belt_tension_right') . ' mm</td>';
-    $html .= '<td class="info-label">Min Eng.Speed LO</td><td>' . val($row,'min_eng_speed_lo') . ' rpm</td>';
-    $html .= '<td class="info-label">Pulley Distance</td><td>' . val($row,'pulley_distance') . ' mm</td>';
-    $html .= '<td></td></tr></table>';
+    // ---- Correction Factor & Blow By + Fuel Injection Timing (FIC) ----
+    // Dibuat 2 tabel terpisah, struktur kolom sama persis kayak form input aslinya
+    // (kiri/kanan dipisah, bukan digabung jadi satu teks "X / Y").
+    $html .= '<table style="width:100%;border-collapse:collapse;margin-top:6px;"><tr>';
+
+    // Kolom kiri: Correction Factor & Blow By
+    $html .= '<td style="width:50%;vertical-align:top;padding-right:6px;">';
+    $html .= '<table class="data-tbl" style="margin-bottom:0;"><thead>';
+    $html .= '<tr><th colspan="2">Correction Factor</th><th rowspan="2">Blow by (std &lt;0.8%)</th></tr>';
+    $html .= '<tr><th>α</th><th>β</th></tr></thead><tbody>';
+    $html .= '<tr><td>' . val($row,'correction_alpha') . '</td><td>' . val($row,'correction_beta') . '</td><td>' . val($row,'blow_by') . '</td></tr>';
+    $html .= '</tbody></table>';
+    $html .= '<table class="data-tbl" style="margin-top:2px;"><thead>';
+    $html .= '<tr><th colspan="2">Min eng. Speed when LO switch ON &le;500 rpm</th><th>Distance of Pulley Crank Shaft to Ring Gear (std 92-93 mm/96-97 mm)</th></tr></thead><tbody>';
+    $html .= '<tr><td colspan="2">' . val($row,'min_eng_speed_lo') . ' rpm</td><td>' . val($row,'pulley_distance') . ' mm</td></tr>';
+    $html .= '</tbody></table>';
+    $html .= '</td>';
+
+    // Kolom kanan: Fuel Injection Timing (FIC)
+    $html .= '<td style="width:50%;vertical-align:top;padding-left:6px;">';
+    $html .= '<table class="data-tbl" style="margin-bottom:0;"><tbody>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC Standard</td><td colspan="3">' . val($row,'fic_standard') . '</td></tr>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC Actual</td><td>' . val($row,'fic_actual_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_actual_right') . '</td></tr>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC Before Test</td><td>' . val($row,'fic_before_test_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_before_test_right') . '</td></tr>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC After Test</td><td>' . val($row,'fic_after_test_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_after_test_right') . '</td></tr>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">Belt Tension 15-20mm</td><td>' . val($row,'belt_tension_left') . '</td><td>mm</td><td>' . val($row,'belt_tension_right') . '</td></tr>';
+    $html .= '</tbody></table>';
+    $html .= '</td>';
+
+    $html .= '</tr></table>';
     // Foto Engine
     $foto_list = [];
     for ($fi = 1; $fi <= 3; $fi++) {
         $fp = $row['foto_engine_' . $fi] ?? '';
         if ($fp && file_exists($fp)) {
             $type = mime_content_type($fp);
-            $foto_list[] = ['src' => 'data:' . $type . ';base64,' . base64_encode(file_get_contents($fp)), 'label' => 'Foto Engine ' . $fi];
+            $foto_list[] = ['src' => 'data:' . $type . ';base64,' . base64_encode(file_get_contents($fp)), 'label' => 'Engine Photo ' . $fi];
         }
     }
     if (!empty($foto_list)) {
-        $html .= '<div style="margin:6px 0;font-weight:bold;font-size:8pt;color:#7B1D1D;">FOTO ENGINE</div>';
+        $html .= '<div style="margin:6px 0;font-weight:bold;font-size:8pt;color:#7B1D1D;">ENGINE PHOTO</div>';
         $html .= '<table style="width:100%;border-collapse:collapse;"><tr>';
         foreach ($foto_list as $foto) {
             $html .= '<td style="text-align:center;padding:4px;width:33%;"><img src="' . $foto['src'] . '" style="max-width:200px;max-height:150px;border:1px solid #ddd;border-radius:4px;"><div style="font-size:7pt;color:#aaa;">' . $foto['label'] . '</div></td>';
@@ -173,9 +203,9 @@ function generateTRHtml($row, $checklist, $logo_b64, $koneksi) {
 function generateFIHtml($row, $checklist, $logo_b64, $koneksi) {
     $approvals = getApproval($koneksi, $row['id'], 'Final_Inspection');
     $html = '<div class="header-wrap">';
-    $html .= '<div class="header-logo"><img src="' . $logo_b64 . '"></div>';
+    $html .= $logo_b64 ? ('<div class="header-logo"><img src="' . $logo_b64 . '"></div>') : '';
     $html .= '<div class="header-info"><h1>PT. YANMAR DIESEL INDONESIA</h1><p>Quality Control Department - Engine Manufacturing</p></div>';
-    $html .= '<div class="header-meta">No. Dok: QCFI-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
+    $html .= '<div class="header-meta">Doc No: QCFI-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
     $html .= '<div class="section-title">FINAL INSPECTION REPORT</div>';
     $html .= '<table class="info-table">';
     $html .= '<tr><td class="info-label">Engine Model</td><td>' . val($row,'engine_model') . '</td><td class="info-label">Inspect Date</td><td>' . val($row,'inspect_date') . '</td></tr>';
@@ -184,7 +214,7 @@ function generateFIHtml($row, $checklist, $logo_b64, $koneksi) {
     $html .= '</table>';
 
     if ($checklist) {
-        $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Item</th><th>Parameter</th><th>Result</th><th>Foto</th></tr></thead><tbody>';
+        $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Item</th><th>Parameter</th><th>Result</th><th>Photo</th></tr></thead><tbody>';
         foreach ($checklist as $i => $c) {
             $res = $c['result'] ?? '-';
             $color = ($res === 'OK') ? '#198754' : (($res === 'NG') ? '#dc3545' : '#666');
@@ -207,18 +237,18 @@ function generateFIHtml($row, $checklist, $logo_b64, $koneksi) {
 function generatePKHtml($row, $checklist, $logo_b64, $koneksi) {
     $approvals = getApproval($koneksi, $row['id'], 'Packing');
     $html = '<div class="header-wrap">';
-    $html .= '<div class="header-logo"><img src="' . $logo_b64 . '"></div>';
+    $html .= $logo_b64 ? ('<div class="header-logo"><img src="' . $logo_b64 . '"></div>') : '';
     $html .= '<div class="header-info"><h1>PT. YANMAR DIESEL INDONESIA</h1><p>Quality Control Department - Engine Manufacturing</p></div>';
-    $html .= '<div class="header-meta">No. Dok: QCPK-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
+    $html .= '<div class="header-meta">Doc No: QCPK-001<br>Rev: 00<br>' . date('d/m/Y') . '</div></div>';
     $html .= '<div class="section-title">PACKING REPORT</div>';
     $html .= '<table class="info-table">';
     $html .= '<tr><td class="info-label">Engine Model</td><td>' . val($row,'engine_model') . '</td><td class="info-label">Pack Date</td><td>' . val($row,'pack_date') . '</td></tr>';
     $html .= '<tr><td class="info-label">Engine No.</td><td>' . val($row,'engine_no') . '</td><td class="info-label">Operator</td><td>' . val($row,'operator_name') . '</td></tr>';
-    $html .= '<tr><td class="info-label">Dicatat Oleh</td><td>' . val($row,'dicatat_oleh') . '</td><td class="info-label">Noted</td><td>' . val($row,'noted') . '</td></tr>';
+    $html .= '<tr><td class="info-label">Recorded By</td><td>' . val($row,'dicatat_oleh') . '</td><td class="info-label">Noted</td><td>' . val($row,'noted') . '</td></tr>';
     $html .= '</table>';
 
     if ($checklist) {
-        $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Item</th><th>Parameter</th><th>Result</th><th>Foto</th></tr></thead><tbody>';
+        $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Item</th><th>Parameter</th><th>Result</th><th>Photo</th></tr></thead><tbody>';
         foreach ($checklist as $i => $c) {
             $res = $c['result'] ?? '-';
             $color = ($res === 'Check') ? '#198754' : (($res === 'NG') ? '#dc3545' : '#666');
@@ -283,6 +313,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
     ]);
 
     $is_first = true;
+    $included_modules = []; // 'TR' / 'FI' / 'PK', dikumpulin buat nama file kalau cuma 1 engine
+    $engine_model_for_name = '';
+    $engine_no_for_name    = '';
 
     foreach ($engine_nos as $engine_no) {
         $en = mysqli_real_escape_string($koneksi, $engine_no);
@@ -294,6 +327,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
             if ($apv_tr) {
                 if (!$is_first) $mpdf->AddPage('L');
                 $is_first = false;
+                $included_modules[] = 'TR';
+                $engine_model_for_name = $tr['engine_model'] ?? $engine_model_for_name;
+                $engine_no_for_name    = $tr['engine_no'] ?? $engine_no_for_name;
                 $checklist_tr = [];
                 $q = mysqli_query($koneksi, "SELECT * FROM checklist WHERE engine_no = '$en'");
                 if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist_tr[] = $r;
@@ -310,6 +346,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
             if ($apv_fi) {
                 if (!$is_first) $mpdf->AddPage('L');
                 $is_first = false;
+                $included_modules[] = 'FI';
+                $engine_model_for_name = $fi['engine_model'] ?? $engine_model_for_name;
+                $engine_no_for_name    = $fi['engine_no'] ?? $engine_no_for_name;
                 $checklist_fi = [];
                 $q = mysqli_query($koneksi, "SELECT * FROM final_inspection_checklist WHERE fi_id = " . intval($fi['id']));
                 if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist_fi[] = $r;
@@ -326,6 +365,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
             if ($apv_pk) {
                 if (!$is_first) $mpdf->AddPage('L');
                 $is_first = false;
+                $included_modules[] = 'PK';
+                $engine_model_for_name = $pk['engine_model'] ?? $engine_model_for_name;
+                $engine_no_for_name    = $pk['engine_no'] ?? $engine_no_for_name;
                 $checklist_pk = [];
                 $q = mysqli_query($koneksi, "SELECT * FROM packing_checklist WHERE pack_id = " . intval($pk['id']));
                 if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist_pk[] = $r;
@@ -336,22 +378,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
         }
     }
 
-    $filename = 'QC_Batch_' . date('Ymd_His') . '.pdf';
+    // Nama file: kalau cuma 1 engine yang di-download, pakai format
+    // QC_TR-FI-PK_Model_Nomor.pdf (modul yang dipakai sesuai yang beneran ada & approved).
+    // Kalau lebih dari 1 engine, nggak mungkin 1 nama file mewakili semuanya -> fallback ke nama batch umum.
+    function sanitizeForFilename($s) {
+        $s = preg_replace('/[^A-Za-z0-9]+/', '', (string) $s);
+        return $s !== '' ? $s : 'X';
+    }
+    if (count($engine_nos) === 1 && !empty($included_modules)) {
+        $mod_part   = implode('-', array_unique($included_modules));
+        $model_part = sanitizeForFilename($engine_model_for_name);
+        $eno_part   = sanitizeForFilename($engine_no_for_name);
+        $filename   = 'QC_' . $mod_part . '_' . $model_part . '_' . $eno_part . '.pdf';
+    } else {
+        $filename = 'QC_Batch_' . date('Ymd_His') . '.pdf';
+    }
     $mpdf->Output($filename, 'D');
     exit();
 }
 
 // ---- TAMPILAN HALAMAN ----
-
-// Ambil daftar model resmi dari master_engine_spec (satu-satunya sumber kebenaran untuk nama model).
-// Dibuat map: versi "dinormalisasi" (tanpa spasi, uppercase) -> nama model resmi yang ditampilkan.
-$canonical_models = []; // normalized_key => display_name
-$qm = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec");
-if ($qm) while ($m = mysqli_fetch_assoc($qm)) {
-    $norm = strtoupper(preg_replace('/[\s\-]+/', '', $m['engine_model']));
-    $canonical_models[$norm] = $m['engine_model'];
-}
-
 $all_engines = [];
 $q = mysqli_query($koneksi, "
     SELECT
@@ -366,20 +412,34 @@ $q = mysqli_query($koneksi, "
         SELECT engine_no, engine_model, created_at FROM packing_data
     ) combined GROUP BY engine_no ORDER BY last_date DESC
 ");
+
+// Daftar 5 model resmi dari master_engine_spec (satu-satunya sumber kebenaran).
+// Dipakai buat menormalisasi variasi penulisan model (mis. "TF70V-E2" vs "TF 70V E-2")
+// supaya engine dengan penulisan model yang beda tetap masuk grup yang sama.
+$canonical_models = []; // normalized_key => display_name
+$qm = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec");
+if ($qm) while ($m = mysqli_fetch_assoc($qm)) {
+    $norm = strtoupper(preg_replace('/[\s\-]+/', '', $m['engine_model']));
+    $canonical_models[$norm] = $m['engine_model'];
+}
+
 if ($q) while ($r = mysqli_fetch_assoc($q)) {
     // Samakan penulisan model apapun yang tersimpan di record (TR/FI/Packing) ke nama resmi
     // dari master_engine_spec, supaya perbedaan spasi/tanda hubung format lama tidak bikin grup terpecah.
     $norm = strtoupper(preg_replace('/[\s\-]+/', '', $r['engine_model'] ?? ''));
-    $r['engine_model'] = $canonical_models[$norm] ?? $r['engine_model'];
+    if (isset($canonical_models[$norm])) {
+        $r['engine_model'] = $canonical_models[$norm];
+    }
     $all_engines[] = $r;
 }
 
-// Kelompokkan per engine_model resmi, biar tidak campur jadi satu list
+// Kelompokkan per engine_model, biar tidak campur jadi satu list
 $grouped_engines = [];
 foreach ($all_engines as $eng) {
     $model_key = $eng['engine_model'] ?: '(Tanpa Model)';
     $grouped_engines[$model_key][] = $eng;
 }
+
 // Urutkan berdasarkan ukuran mesin (70, 90, 120, dst), bukan alfabetis biasa
 // (biar TF 70V... muncul duluan sebelum TF 120V..., bukan sebaliknya)
 uksort($grouped_engines, function($a, $b) {
@@ -507,12 +567,6 @@ function qs($params_override) {
                         </a>
                         <?php endif; ?>
                     </form>
-                    <?php if ($search_q !== ''): ?>
-                    <div class="alert alert-info py-2 mb-3" style="font-size:12px;">
-                        Menampilkan hasil pencarian untuk: <strong>"<?php echo e($search_q); ?>"</strong>
-                        (<?php echo array_sum(array_map('count', $grouped_engines)); ?> engine ditemukan)
-                    </div>
-                    <?php endif; ?>
                     <div id="engine-list">
                     <?php foreach ($grouped_engines as $model_name => $engines_in_model): ?>
                     <div class="engine-group" data-model="<?php echo e($model_name); ?>">

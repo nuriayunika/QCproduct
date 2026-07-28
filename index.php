@@ -220,7 +220,7 @@ $is_approver = (
             text-align: center; padding: 6px 4px; border-color: #555;
         }
         .perf-table thead tr th.th-data1 { background-color: var(--maroon) !important; }
-        .perf-table thead tr th.th-data2 { background-color: #1a5c3a !important; }
+        .perf-table thead tr th.th-data2 { background-color: #5a1414 !important; }
         .perf-table tbody td { vertical-align: middle; padding: 3px; }
         .perf-table .form-control {
             font-size: 11px; padding: 2px 4px; height: 28px;
@@ -653,8 +653,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Test Date</label>
                                 <div class="col-sm-7">
-                                    <input type="text" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" value="<?php echo date('d/m/Y'); ?>" readonly>
-                                    <input type="hidden" name="test_date" value="<?php echo date('Y-m-d'); ?>">
+                                    <input type="date" name="test_date" class="form-control form-control-sm" style="font-size:12px;" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
                                 </div>
                             </div>
                             <div class="row mb-1">
@@ -692,19 +691,19 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             </div>
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Fuel sp. Grafity</label>
-                                <div class="col-sm-7"><input type="number" name="fuel_sp_gravity" step="0.001" class="form-control form-control-sm" style="font-size:12px;"></div>
+                                <div class="col-sm-7"><input type="number" name="fuel_sp_gravity" step="any" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Dry temp (°C)</label>
-                                <div class="col-sm-7"><input type="number" name="dry_temp" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
+                                <div class="col-sm-7"><input type="number" name="dry_temp" step="any" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Wet temp (°C)</label>
-                                <div class="col-sm-7"><input type="number" name="wet_temp" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
+                                <div class="col-sm-7"><input type="number" name="wet_temp" step="any" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Atmosphere press</label>
-                                <div class="col-sm-7"><input type="number" name="atmosphere_press" step="0.1" class="form-control form-control-sm" style="font-size:12px;"></div>
+                                <div class="col-sm-7"><input type="number" name="atmosphere_press" step="any" class="form-control form-control-sm" style="font-size:12px;"></div>
                             </div>
                         </div>
 
@@ -801,6 +800,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
                                             <option value="OK">OK</option>
                                             <option value="NG">NG</option>
+                                            <option value="-">-</option>
                                         </select>
                                     </div>
                                 <?php } ?>
@@ -851,40 +851,40 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <tr>
                                     <td>1</td>
                                     <td class="text-start fw-bold" id="lbl_speed1">-</td>
-                                    <td><input type="number" name="r1_actual_nm" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_corrected_kw" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_torque_nm" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_load_kgm" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_cc_30sec" step="0.1" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_mm3_st" step="0.1" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_g_kwh" step="0.1" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_sd_bsu" step="0.1" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_actual_nm" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_corrected_kw" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_torque_nm" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_load_kgm" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_cc_30sec" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_mm3_st" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_fuel_g_kwh" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_sd_bsu" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r1_temp_exhaust" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r1_temp_oil" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_lo_press" step="0.001" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_intake_press" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_exhaust_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_lo_press" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_intake_press" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_exhaust_press" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r1_nox" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r1_co" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_co2" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_o2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_co2" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_o2" step="any" class="form-control form-control-sm"></td>
                                     <td class="bg-secondary"></td>
                                 </tr>
                                 <tr>
                                     <td>2</td>
                                     <td class="text-start fw-bold" id="lbl_speed2">-</td>
-                                    <td><input type="number" name="r2_actual_nm" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_corrected_kw" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_actual_nm" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_corrected_kw" step="any" class="form-control form-control-sm"></td>
                                     <td class="bg-secondary" colspan="6"></td>
                                     <td><input type="number" name="r2_temp_exhaust" class="form-control form-control-sm"></td>
                                     <td class="bg-secondary"></td>
-                                    <td><input type="number" name="r2_lo_press" step="0.001" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_intake_press" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_exhaust_press" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_lo_press" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_intake_press" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_exhaust_press" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r2_nox" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r2_co" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_co2" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_o2" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_co2" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_o2" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r2_correct_co" class="form-control form-control-sm"></td>
                                 </tr>
                             </tbody>
@@ -915,10 +915,10 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <tbody>
                                 <tr>
                                     <td class="fw-bold" id="lbl_speed3">-</td>
-                                    <td><input type="number" name="r3_torque_nm" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_torque_nm" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r3_coolant_temp" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_current_glow" step="0.01" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_current_wire" step="0.01" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_current_glow" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r3_current_wire" step="any" class="form-control form-control-sm"></td>
                                     <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm" placeholder="Std 10-12"></td>
                                     <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm" placeholder="Std 24-28"></td>
                                     <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm" placeholder="Std 25-29"></td>
@@ -1807,7 +1807,15 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '</tr></thead><tbody>';
             checklist.forEach(function(c, i) {
                 var result = c.jawaban || c.result || '-';
-                var resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
+                var kategori = c.kategori || '';
+                var resultColor;
+                if (kategori === 'Leakage Check') {
+                    // Khusus Leakage Check: "No" = tidak ada kebocoran = bagus (hijau),
+                    // "Yes" = ada kebocoran = masalah (merah) - kebalikan dari kategori lain.
+                    resultColor = (result === 'No') ? '#198754' : (result === 'Yes') ? '#dc3545' : '#666';
+                } else {
+                    resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
+                }
                 html += '<tr><td class="text-center">' + (i+1) + '</td>';
                 html += '<td>' + (c.item_name || c.item || '-') + '</td>';
                 if (modul === 'test_running') html += '<td>' + (c.kategori || '-') + '</td>';
@@ -1845,7 +1853,7 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '<tr style="background:#5a1414;color:#fff;">';
             html += '<th rowspan="2">No</th><th rowspan="2">Eng.Speed</th>';
             html += '<th colspan="8" style="background:#7B1D1D;">OUTPUT, TORQUE & FUEL (DATA 1)</th>';
-            html += '<th colspan="10" style="background:#1a5c3a;">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>';
+            html += '<th colspan="10" style="background:#5a1414;">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>';
             html += '</tr>';
             html += '<tr style="background:#5a1414;color:#fff;">';
             html += '<th>Actual Nm</th><th>Corrected kW</th><th>Torque Nm</th><th>Load kgm</th><th>cc/30sec</th><th>mm³/st</th><th>g/kWh</th><th>Sd BSU</th>';
@@ -1914,10 +1922,6 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
     });
 }
 
-// Kolom DECIMAL di MySQL selalu balik dengan nol di belakang koma sesuai scale-nya
-// (mis. decimal(4,2) -> "1.00"). Fungsi ini membersihkannya jadi angka bersih tanpa
-// mengubah field yang isinya teks campuran (mis. "4.8 kW/2600 rpm", "16.5°±0.7")
-// ATAU angka yang memang sengaja diketik pakai koma/desimal beneran (mis. "16.5" tetap "16.5").
 function cleanNum(val) {
     if (val === null || val === undefined || val === '') return val;
     var s = String(val).trim();
@@ -2094,6 +2098,7 @@ function validateTRForm(form) {
 
     // Field teks/number wajib
     var requiredFields = [
+        { name: 'test_date',          label: 'Test Date' },
         { name: 'engine_model',      label: 'Engine Model' },
         { name: 'engine_no',         label: 'Engine No.' },
         { name: 'fuel_sp_gravity',   label: 'Fuel sp. Gravity' },
@@ -2174,16 +2179,7 @@ function validateTRForm(form) {
         }
     });
 
-    // Validasi foto engine 1, 2, 3
-    for (var fn = 1; fn <= 3; fn++) {
-        var fotoEl = form.elements['foto_engine_' + fn];
-        if (!fotoEl || !fotoEl.files || fotoEl.files.length === 0) {
-            errors.push('Foto Engine ' + fn);
-            $('#foto_engine_' + fn).css('border-color', '#dc3545');
-        } else {
-            $('#foto_engine_' + fn).css('border-color', '');
-        }
-    }
+    // Foto Engine 1/2/3 sementara dibuat OPSIONAL (tidak wajib diisi buat submit)
 
     if (errors.length > 0) {
         var listHtml = errors.slice(0, 10).map(e => '<li>' + e + '</li>').join('');
@@ -2262,7 +2258,7 @@ function loadPackingChecklist() {
 $(document).on('click', '#btn-packing', function(){ setTimeout(loadPackingChecklist, 100); });
 if (window.location.hash === '#packing') { $(document).ready(function(){ loadPackingChecklist(); }); }
 
-// Cek hasil test running (untuk operator FI) - mode LOOKUP: isi langsung ke form TR asli, readonly
+// Cek hasil test running (untuk operator FI)
 function searchTRResult() {
     var engine_no = $('#search_tr_engine_no').val().trim();
     if (!engine_no) { alert('Ketik Engine No. terlebih dahulu!'); return; }
