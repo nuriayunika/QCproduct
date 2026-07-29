@@ -5,11 +5,9 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
     echo json_encode(['status'=>'error','message'=>'Unauthorized']); exit();
 }
 include 'koneksi.php';
+@ini_set('memory_limit', '256M');
+@set_time_limit(60);
 
-// Kolom DECIMAL di MySQL selalu balik dengan nol di belakang koma sesuai scale-nya
-// (mis. decimal(4,2) -> "1.00"). Fungsi ini membersihkannya jadi angka bersih tanpa
-// mengubah field yang isinya teks campuran (mis. "4.8 kW/2600 rpm", "16.5°±0.7") atau
-// angka desimal yang memang beneran (mis. "16.5" tetap "16.5", bukan dibulatkan).
 function cleanNum($v) {
     if ($v === null || $v === '') return $v;
     $s = trim((string) $v);
@@ -23,8 +21,6 @@ function cleanRow($row) {
     return $row;
 }
 
-// ===== MODE LOOKUP BY ENGINE_NO (untuk fitur Search TR di form Final Inspection) =====
-// Dipanggil via POST { engine_no: '...' } tanpa id/modul.
 if (!empty($_POST['engine_no'])) {
     $engine_no = mysqli_real_escape_string($koneksi, trim($_POST['engine_no']));
 
@@ -38,12 +34,10 @@ if (!empty($_POST['engine_no'])) {
         exit();
     }
 
-    // Checklist visual inspection TR
     $checklist = [];
     $q = mysqli_query($koneksi, "SELECT * FROM checklist WHERE engine_no = '$engine_no'");
     if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist[] = $r;
 
-    // Status approval Foreman untuk Test Running (approval TR = selesai, tidak berjenjang)
     $tr_id = intval($row['id']);
     $approved = false;
     $chk = mysqli_query(
@@ -57,7 +51,6 @@ if (!empty($_POST['engine_no'])) {
     );
     if ($chk && mysqli_num_rows($chk) > 0) $approved = true;
 
-    // Foto engine (base64, indeks 0/1/2 = foto_engine_1/2/3)
     $foto = [];
     for ($f = 1; $f <= 3; $f++) {
         $path = $row['foto_engine_'.$f] ?? '';
@@ -79,7 +72,6 @@ if (!empty($_POST['engine_no'])) {
     exit();
 }
 
-// ===== MODE LOOKUP BY ID + MODUL (dipakai Approval Dashboard) =====
 $id    = intval($_GET['id']    ?? ($_POST['id'] ?? 0));
 $modul = $_GET['modul'] ?? ($_POST['modul'] ?? '');
 
@@ -97,7 +89,6 @@ if (!$tbl) { echo json_encode(['status'=>'error','message'=>'Modul tidak valid']
 $row = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM `$tbl` WHERE id = $id"));
 if (!$row) { echo json_encode(['status'=>'error','message'=>'Data tidak ditemukan']); exit(); }
 
-// Ambil checklist
 $checklist = [];
 if ($modul === 'test_running') {
     $engine_no = mysqli_real_escape_string($koneksi, $row['engine_no']);
@@ -111,10 +102,6 @@ if ($modul === 'test_running') {
     if ($q) while ($r = mysqli_fetch_assoc($q)) $checklist[] = $r;
 }
 
-// Foto (base64 untuk ditampilkan di modal)
-// - test_running: 3 foto tetap di kolom foto_engine_1/2/3 pada result_test_run -> gallery terpisah
-// - final_inspection / packing: foto per-item checklist -> ditempel langsung ke masing-masing
-//   item checklist (key 'foto_base64'), supaya bisa ditampilkan di samping item-nya, bukan gallery
 $foto = [];
 if ($modul === 'test_running') {
     for ($f = 1; $f <= 3; $f++) {

@@ -6,16 +6,21 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
 }
 include 'koneksi.php';
 
-$model = mysqli_real_escape_string($koneksi, $_POST['engine_model'] ?? '');
+$model = trim($_POST['engine_model'] ?? '');
 if (empty($model)) { echo json_encode([]); exit(); }
 
-$result = mysqli_query($koneksi,
-    "SELECT item_name, parameter FROM master_final_inspection
-     WHERE engine_model = '$model' ORDER BY id ASC"
-);
+// Cocokkan engine_model secara "longgar" (abaikan beda spasi/tanda hubung/kapitalisasi),
+// supaya nggak gagal cuma karena penulisan model beda dikit antara result_test_run dan
+// master_final_inspection (mis. "TF 70V E-2" vs "TF70V-E2").
+$norm_target = strtoupper(preg_replace('/[\s\-]+/', '', $model));
+
+$result = mysqli_query($koneksi, "SELECT item_name, parameter, engine_model FROM master_final_inspection ORDER BY id ASC");
 
 $items = [];
 while ($row = mysqli_fetch_assoc($result)) {
-    $items[] = $row;
+    $norm_row = strtoupper(preg_replace('/[\s\-]+/', '', $row['engine_model']));
+    if ($norm_row === $norm_target) {
+        $items[] = ['item_name' => $row['item_name'], 'parameter' => $row['parameter']];
+    }
 }
 echo json_encode($items);

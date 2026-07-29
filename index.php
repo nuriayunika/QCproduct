@@ -220,7 +220,7 @@ $is_approver = (
             text-align: center; padding: 6px 4px; border-color: #555;
         }
         .perf-table thead tr th.th-data1 { background-color: var(--maroon) !important; }
-        .perf-table thead tr th.th-data2 { background-color: #5a1414 !important; }
+        .perf-table thead tr th.th-data2 { background-color: #7B1D1D !important; }
         .perf-table tbody td { vertical-align: middle; padding: 3px; }
         .perf-table .form-control {
             font-size: 11px; padding: 2px 4px; height: 28px;
@@ -1130,25 +1130,34 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
-                                    <select name="engine_model" id="fi_engine_model"
+                                    <select name="engine_no" id="fi_engine_select"
                                             class="form-select form-select-sm fw-bold text-dark border-success shadow-sm" required>
-                                        <option value="">- Pilih Model -</option>
+                                        <option value="">- Pilih Engine (sudah Test Running, belum Final Inspection) -</option>
                                         <?php
-                                        $q_fi_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_final_inspection ORDER BY CAST(REPLACE(REPLACE(REPLACE(engine_model,'TF',''),'V',''),'-','') AS UNSIGNED) ASC, engine_model ASC");
-                                        while ($fm = mysqli_fetch_array($q_fi_model)) {
-                                            echo "<option value='".$fm['engine_model']."'>".$fm['engine_model']."</option>";
+                                        $q_fi_eng = mysqli_query($koneksi, "
+                                            SELECT tr.engine_no, tr.engine_model, tr.test_date
+                                            FROM result_test_run tr
+                                            INNER JOIN approvals a ON a.test_run_id = tr.id AND a.stage='Test_Running' AND a.role='Foreman' AND a.status='approved'
+                                            LEFT JOIN final_inspection_data fi ON fi.engine_no = tr.engine_no
+                                            WHERE fi.id IS NULL
+                                            ORDER BY tr.created_at DESC
+                                        ");
+                                        while ($fe = mysqli_fetch_assoc($q_fi_eng)) {
+                                            $fe_no    = htmlspecialchars($fe['engine_no']);
+                                            $fe_model = htmlspecialchars($fe['engine_model']);
+                                            $fe_date  = $fe['test_date'] ? date('d/m/Y', strtotime($fe['test_date'])) : '-';
+                                            echo "<option value=\"$fe_no\" data-model=\"$fe_model\">$fe_no &mdash; $fe_model &middot; $fe_date</option>";
                                         }
                                         ?>
                                     </select>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="engine_no" class="form-control form-control-sm"
-                                           required placeholder="Ketik No. Mesin...">
+                                    <input type="text" id="fi_engine_model_display" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" readonly placeholder="Otomatis mengikuti Engine No.">
                                 </div>
                             </div>
                         </div>
@@ -1270,23 +1279,33 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
-                                    <select name="engine_model" id="pk_engine_model" class="form-select form-select-sm" style="font-size:12px; font-weight:500; border-color:#7B1D1D;" required>
-                                        <option value="">- Pilih Model -</option>
+                                    <select name="engine_no" id="pk_engine_select" class="form-select form-select-sm" style="font-size:12px; font-weight:500; border-color:#7B1D1D;" required>
+                                        <option value="">- Pilih Engine (sudah Final Inspection, belum Packing) -</option>
                                         <?php
-                                        $q_pk_model = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM master_engine_spec ORDER BY CAST(REPLACE(REPLACE(REPLACE(engine_model,'TF',''),'V',''),'-','') AS UNSIGNED) ASC, engine_model ASC");
-                                        while ($pm = mysqli_fetch_array($q_pk_model)) {
-                                            echo "<option value='".$pm['engine_model']."'>".$pm['engine_model']."</option>";
+                                        $q_pk_eng = mysqli_query($koneksi, "
+                                            SELECT fi.engine_no, fi.engine_model, fi.inspect_date
+                                            FROM final_inspection_data fi
+                                            INNER JOIN approvals a ON a.test_run_id = fi.id AND a.stage='Final_Inspection' AND a.role='Supervisor' AND a.status='approved'
+                                            LEFT JOIN packing_data pk ON pk.engine_no = fi.engine_no
+                                            WHERE pk.id IS NULL
+                                            ORDER BY fi.created_at DESC
+                                        ");
+                                        while ($pe = mysqli_fetch_assoc($q_pk_eng)) {
+                                            $pe_no    = htmlspecialchars($pe['engine_no']);
+                                            $pe_model = htmlspecialchars($pe['engine_model']);
+                                            $pe_date  = $pe['inspect_date'] ? date('d/m/Y', strtotime($pe['inspect_date'])) : '-';
+                                            echo "<option value=\"$pe_no\" data-model=\"$pe_model\">$pe_no &mdash; $pe_model &middot; $pe_date</option>";
                                         }
                                         ?>
                                     </select>
                                 </div>
                             </div>
                             <div class="row mb-1">
-                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
+                                <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine Model</label>
                                 <div class="col-sm-7">
-                                    <input type="text" name="engine_no" class="form-control form-control-sm" style="font-size:12px;" required placeholder="Ketik No. Mesin...">
+                                    <input type="text" id="pk_engine_model_display" class="form-control form-control-sm" style="font-size:12px; background:#f7f7f7; color:#666;" readonly placeholder="Otomatis mengikuti Engine No.">
                                 </div>
                             </div>
                         </div>
@@ -1853,7 +1872,7 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '<tr style="background:#5a1414;color:#fff;">';
             html += '<th rowspan="2">No</th><th rowspan="2">Eng.Speed</th>';
             html += '<th colspan="8" style="background:#7B1D1D;">OUTPUT, TORQUE & FUEL (DATA 1)</th>';
-            html += '<th colspan="10" style="background:#5a1414;">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>';
+            html += '<th colspan="10" style="background:#7B1D1D;">TEMPERATURE, PRESSURE & EMISSION (DATA 2)</th>';
             html += '</tr>';
             html += '<tr style="background:#5a1414;color:#fff;">';
             html += '<th>Actual Nm</th><th>Corrected kW</th><th>Torque Nm</th><th>Load kgm</th><th>cc/30sec</th><th>mm³/st</th><th>g/kWh</th><th>Sd BSU</th>';
@@ -1902,8 +1921,8 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += infoItem('Correction α', row.correction_alpha);
             html += infoItem('Correction β', row.correction_beta);
             html += infoItem('Blow By', row.blow_by);
-            html += infoItem('Min Eng.Speed LO', (cleanNum(row.min_eng_speed_lo)||'-') + ' rpm');
-            html += infoItem('Pulley Distance', (cleanNum(row.pulley_distance)||'-') + ' mm');
+            html += infoItem('Min eng. Speed when LO switch ON ≤500 rpm', (cleanNum(row.min_eng_speed_lo)||'-') + ' rpm');
+            html += infoItem('Distance of Pulley Crank Shaft to Ring Gear (std 92-93 mm/96-97 mm)', (cleanNum(row.pulley_distance)||'-') + ' mm');
             html += '</div>';
         }
 
@@ -1990,15 +2009,16 @@ $(document).ready(function(){
 // -------------------------------------------------------
 // AJAX: Load checklist Final Inspection sesuai model
 // -------------------------------------------------------
-$('#fi_engine_model').change(function(){
-    var model = $(this).val();
+$('#fi_engine_select').change(function(){
+    var model = $(this).find('option:selected').data('model') || '';
+    $('#fi_engine_model_display').val(model);
     var container = $('#fi_checklist_container');
     var emptyMsg  = $('#fi_empty_msg');
     var submitBtn = $('#btn_fi_submit');
     var counter   = $('#fi_item_count');
 
     if (!model) {
-        container.html('<div class="text-center text-muted py-5" id="fi_empty_msg"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block text-success opacity-50"></i>Pilih Engine Model terlebih dahulu.</div>');
+        container.html('<div class="text-center text-muted py-5" id="fi_empty_msg"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block text-success opacity-50"></i>Pilih Engine terlebih dahulu.</div>');
         submitBtn.prop('disabled', true);
         counter.text('Pilih Engine Model untuk memuat checklist');
         return;
@@ -2210,14 +2230,18 @@ $(document).on('input change', '#sec-test-running input, #sec-test-running selec
 
 function resetFIForm() {
     if (!confirm('Reset form Final Inspection?')) return;
-    $('#fi_engine_model').val('').trigger('change');
-    $('input[name="engine_no"]', '#form-fi').val('');
+    $('#fi_engine_select').val('').trigger('change');
+    $('#fi_engine_model_display').val('');
     $('textarea[name="noted"]', '#form-fi').val('');
 }
 
 // -------------------------------------------------------
 // Load checklist Packing otomatis saat tab packing dibuka
 // -------------------------------------------------------
+$(document).on('change', '#pk_engine_select', function(){
+    $('#pk_engine_model_display').val($(this).find('option:selected').data('model') || '');
+});
+
 function loadPackingChecklist() {
     $.ajax({
         url: 'ambil_checklist_packing.php', type: 'GET', dataType: 'json',

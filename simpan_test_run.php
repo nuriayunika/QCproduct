@@ -1,6 +1,9 @@
 <?php
 session_start();
 include 'koneksi.php';
+include 'image_helper.php';
+@ini_set('memory_limit', '256M');
+@set_time_limit(120);
 
 if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
     header("location:login.php");
@@ -110,8 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (in_array($ext, $allowed)) {
                 $filename = 'tr_' . date('Ymd_His') . '_' . $fn . '_' . rand(100,999) . '.' . $ext;
                 $dest     = $upload_dir . $filename;
-                if (move_uploaded_file($_FILES[$field]['tmp_name'], $dest)) {
-                    ${'foto_engine_' . $fn} = "'" . mysqli_real_escape_string($koneksi, $dest) . "'";
+                $saved    = resizeAndSaveImage($_FILES[$field]['tmp_name'], $dest, 1200, 75);
+                if ($saved) {
+                    ${'foto_engine_' . $fn} = "'" . mysqli_real_escape_string($koneksi, $saved) . "'";
                 }
             }
         }
