@@ -298,9 +298,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // ---- HANDLE POST - GENERATE PDF ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
     require_once __DIR__ . '/vendor/autoload.php';
-    @ini_set('pcre.backtrack_limit', '5000000');
-    @ini_set('memory_limit', '512M');
-    @set_time_limit(180);
+    @ini_set('pcre.backtrack_limit', '500000000');
+    @ini_set('pcre.recursion_limit', '500000000');
+    @ini_set('memory_limit', '1024M');
+    @set_time_limit(300);
 
     $logo_b64 = getLogoB64();
     $engine_nos = $_POST['engine_nos'];
