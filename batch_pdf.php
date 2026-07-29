@@ -306,6 +306,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
     $logo_b64 = getLogoB64();
     $engine_nos = $_POST['engine_nos'];
 
+    $mpdfTempDir = sys_get_temp_dir() . '/mpdf';
+    if (!is_dir($mpdfTempDir)) { @mkdir($mpdfTempDir, 0777, true); }
+
     $mpdf = new \Mpdf\Mpdf([
         'mode'          => 'utf-8',
         'format'        => 'A4-L',
@@ -313,6 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
         'margin_bottom' => 10,
         'margin_left'   => 10,
         'margin_right'  => 10,
+        'tempDir'       => $mpdfTempDir,
     ]);
 
     $is_first = true;

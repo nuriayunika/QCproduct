@@ -669,6 +669,9 @@ $html = ob_get_clean();
 // ============================================================
 // Generate PDF dengan mPDF
 // ============================================================
+$mpdfTempDir = sys_get_temp_dir() . '/mpdf';
+if (!is_dir($mpdfTempDir)) { @mkdir($mpdfTempDir, 0777, true); }
+
 $mpdf = new \Mpdf\Mpdf([
     'mode'          => 'utf-8',
     'format'        => 'A4-L',
@@ -676,6 +679,7 @@ $mpdf = new \Mpdf\Mpdf([
     'margin_bottom' => 5,
     'margin_left'   => 10,
     'margin_right'  => 10,
+    'tempDir'       => $mpdfTempDir,
 ]);
 $mpdf->img_dpi = 96;
 $mpdf->defaultCssFile = '';
