@@ -306,6 +306,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
     $logo_b64 = getLogoB64();
     $engine_nos = $_POST['engine_nos'];
 
+    // mPDF butuh temp dir yang writable oleh user Apache (daemon).
+    // Default-nya vendor/mpdf/mpdf/tmp yang cuma writable oleh owner file,
+    // jadi arahkan ke sys temp dir supaya export nggak gagal saat dijalankan via web.
     $mpdfTempDir = sys_get_temp_dir() . '/mpdf';
     if (!is_dir($mpdfTempDir)) { @mkdir($mpdfTempDir, 0777, true); }
 
