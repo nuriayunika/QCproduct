@@ -1134,7 +1134,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <div class="col-sm-7">
                                     <div class="position-relative">
                                         <input type="text" id="fi_engine_search" class="form-control form-control-sm fw-bold text-dark border-success shadow-sm"
-                                               placeholder="Ketik Engine No. atau Model untuk cari..." autocomplete="off">
+                                               placeholder="Ketik Engine No. untuk cari..." autocomplete="off">
                                         <div id="fi_engine_dropdown" class="list-group shadow-sm" style="position:absolute; z-index:1000; width:100%; max-height:260px; overflow-y:auto; display:none;"></div>
                                         <select name="engine_no" id="fi_engine_select" class="d-none" required>
                                             <option value="">- Pilih Engine (sudah Test Running, belum Final Inspection) -</option>
