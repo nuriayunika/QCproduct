@@ -1132,26 +1132,30 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
-                                    <select name="engine_no" id="fi_engine_select"
-                                            class="form-select form-select-sm fw-bold text-dark border-success shadow-sm" required>
-                                        <option value="">- Pilih Engine (sudah Test Running, belum Final Inspection) -</option>
-                                        <?php
-                                        $q_fi_eng = mysqli_query($koneksi, "
-                                            SELECT tr.engine_no, tr.engine_model, tr.test_date
-                                            FROM result_test_run tr
-                                            INNER JOIN approvals a ON a.test_run_id = tr.id AND a.stage='Test_Running' AND a.role='Foreman' AND a.status='approved'
-                                            LEFT JOIN final_inspection_data fi ON fi.engine_no = tr.engine_no
-                                            WHERE fi.id IS NULL
-                                            ORDER BY tr.created_at DESC
-                                        ");
-                                        while ($fe = mysqli_fetch_assoc($q_fi_eng)) {
-                                            $fe_no    = htmlspecialchars($fe['engine_no']);
-                                            $fe_model = htmlspecialchars($fe['engine_model']);
-                                            $fe_date  = $fe['test_date'] ? date('d/m/Y', strtotime($fe['test_date'])) : '-';
-                                            echo "<option value=\"$fe_no\" data-model=\"$fe_model\">$fe_no &mdash; $fe_model &middot; $fe_date</option>";
-                                        }
-                                        ?>
-                                    </select>
+                                    <div class="position-relative">
+                                        <input type="text" id="fi_engine_search" class="form-control form-control-sm fw-bold text-dark border-success shadow-sm"
+                                               placeholder="Ketik Engine No. atau Model untuk cari..." autocomplete="off">
+                                        <div id="fi_engine_dropdown" class="list-group shadow-sm" style="position:absolute; z-index:1000; width:100%; max-height:260px; overflow-y:auto; display:none;"></div>
+                                        <select name="engine_no" id="fi_engine_select" class="d-none" required>
+                                            <option value="">- Pilih Engine (sudah Test Running, belum Final Inspection) -</option>
+                                            <?php
+                                            $q_fi_eng = mysqli_query($koneksi, "
+                                                SELECT tr.engine_no, tr.engine_model, tr.test_date
+                                                FROM result_test_run tr
+                                                INNER JOIN approvals a ON a.test_run_id = tr.id AND a.stage='Test_Running' AND a.role='Foreman' AND a.status='approved'
+                                                LEFT JOIN final_inspection_data fi ON fi.engine_no = tr.engine_no
+                                                WHERE fi.id IS NULL
+                                                ORDER BY tr.created_at DESC
+                                            ");
+                                            while ($fe = mysqli_fetch_assoc($q_fi_eng)) {
+                                                $fe_no    = htmlspecialchars($fe['engine_no']);
+                                                $fe_model = htmlspecialchars($fe['engine_model']);
+                                                $fe_date  = $fe['test_date'] ? date('d/m/Y', strtotime($fe['test_date'])) : '-';
+                                                echo "<option value=\"$fe_no\" data-model=\"$fe_model\" data-date=\"$fe_date\">$fe_no &mdash; $fe_model &middot; $fe_date</option>";
+                                            }
+                                            ?>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div class="row mb-1">
@@ -1281,25 +1285,30 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             <div class="row mb-1">
                                 <label class="col-sm-5 col-form-label col-form-label-sm" style="font-size:12px; font-weight:500; color:#555;">Engine No.</label>
                                 <div class="col-sm-7">
-                                    <select name="engine_no" id="pk_engine_select" class="form-select form-select-sm" style="font-size:12px; font-weight:500; border-color:#7B1D1D;" required>
-                                        <option value="">- Pilih Engine (sudah Final Inspection, belum Packing) -</option>
-                                        <?php
-                                        $q_pk_eng = mysqli_query($koneksi, "
-                                            SELECT fi.engine_no, fi.engine_model, fi.inspect_date
-                                            FROM final_inspection_data fi
-                                            INNER JOIN approvals a ON a.test_run_id = fi.id AND a.stage='Final_Inspection' AND a.role='Supervisor' AND a.status='approved'
-                                            LEFT JOIN packing_data pk ON pk.engine_no = fi.engine_no
-                                            WHERE pk.id IS NULL
-                                            ORDER BY fi.created_at DESC
-                                        ");
-                                        while ($pe = mysqli_fetch_assoc($q_pk_eng)) {
-                                            $pe_no    = htmlspecialchars($pe['engine_no']);
-                                            $pe_model = htmlspecialchars($pe['engine_model']);
-                                            $pe_date  = $pe['inspect_date'] ? date('d/m/Y', strtotime($pe['inspect_date'])) : '-';
-                                            echo "<option value=\"$pe_no\" data-model=\"$pe_model\">$pe_no &mdash; $pe_model &middot; $pe_date</option>";
-                                        }
-                                        ?>
-                                    </select>
+                                    <div class="position-relative">
+                                        <input type="text" id="pk_engine_search" class="form-control form-control-sm" style="font-size:12px; font-weight:500; border-color:#7B1D1D;"
+                                               placeholder="Ketik Engine No. atau Model untuk cari..." autocomplete="off">
+                                        <div id="pk_engine_dropdown" class="list-group shadow-sm" style="position:absolute; z-index:1000; width:100%; max-height:260px; overflow-y:auto; display:none;"></div>
+                                        <select name="engine_no" id="pk_engine_select" class="d-none" required>
+                                            <option value="">- Pilih Engine (sudah Final Inspection, belum Packing) -</option>
+                                            <?php
+                                            $q_pk_eng = mysqli_query($koneksi, "
+                                                SELECT fi.engine_no, fi.engine_model, fi.inspect_date
+                                                FROM final_inspection_data fi
+                                                INNER JOIN approvals a ON a.test_run_id = fi.id AND a.stage='Final_Inspection' AND a.role='Supervisor' AND a.status='approved'
+                                                LEFT JOIN packing_data pk ON pk.engine_no = fi.engine_no
+                                                WHERE pk.id IS NULL
+                                                ORDER BY fi.created_at DESC
+                                            ");
+                                            while ($pe = mysqli_fetch_assoc($q_pk_eng)) {
+                                                $pe_no    = htmlspecialchars($pe['engine_no']);
+                                                $pe_model = htmlspecialchars($pe['engine_model']);
+                                                $pe_date  = $pe['inspect_date'] ? date('d/m/Y', strtotime($pe['inspect_date'])) : '-';
+                                                echo "<option value=\"$pe_no\" data-model=\"$pe_model\" data-date=\"$pe_date\">$pe_no &mdash; $pe_model &middot; $pe_date</option>";
+                                            }
+                                            ?>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div class="row mb-1">
@@ -2230,10 +2239,84 @@ $(document).on('input change', '#sec-test-running input, #sec-test-running selec
 
 function resetFIForm() {
     if (!confirm('Reset form Final Inspection?')) return;
-    $('#fi_engine_select').val('').trigger('change');
+    resetFiEngineSearch();
     $('#fi_engine_model_display').val('');
     $('textarea[name="noted"]', '#form-fi').val('');
 }
+
+// -------------------------------------------------------
+// Search + dropdown buat pilih Engine (dipakai di FI & Packing),
+// supaya nggak perlu scroll <select> panjang kalau datanya banyak.
+// -------------------------------------------------------
+function initSearchableEngineSelect(searchId, dropdownId, selectId) {
+    var $search   = $('#' + searchId);
+    var $dropdown = $('#' + dropdownId);
+    var $select   = $('#' + selectId);
+
+    // Ambil semua opsi (kecuali placeholder kosong) jadi array data
+    var options = [];
+    $select.find('option').each(function() {
+        var val = $(this).val();
+        if (val === '') return;
+        options.push({
+            value: val,
+            model: $(this).data('model') || '',
+            date:  $(this).data('date') || '',
+            text:  $(this).text()
+        });
+    });
+
+    function renderList(list) {
+        $dropdown.empty();
+        if (list.length === 0) {
+            $dropdown.append('<div class="list-group-item text-muted" style="font-size:12px;">Tidak ada engine yang cocok.</div>');
+        } else {
+            list.slice(0, 100).forEach(function(item) {
+                var $row = $('<button type="button" class="list-group-item list-group-item-action" style="font-size:12px;"></button>');
+                $row.html('<strong>' + item.value + '</strong> &mdash; ' + item.model + ' &middot; ' + item.date);
+                $row.on('mousedown', function(e) {
+                    e.preventDefault(); // supaya blur nggak nutup dropdown sebelum klik kepilih
+                    $select.val(item.value).trigger('change');
+                    $search.val(item.value + ' — ' + item.model + ' · ' + item.date);
+                    $dropdown.hide();
+                });
+                $dropdown.append($row);
+            });
+            if (list.length > 100) {
+                $dropdown.append('<div class="list-group-item text-muted" style="font-size:11px;">... dan ' + (list.length - 100) + ' engine lainnya, perkecil pencarian.</div>');
+            }
+        }
+        $dropdown.show();
+    }
+
+    $search.on('focus click', function() {
+        var q = $(this).val().toLowerCase();
+        var filtered = q ? options.filter(function(o) { return (o.value + ' ' + o.model).toLowerCase().includes(q); }) : options;
+        renderList(filtered);
+    });
+    $search.on('input', function() {
+        var q = $(this).val().toLowerCase();
+        var filtered = q ? options.filter(function(o) { return (o.value + ' ' + o.model).toLowerCase().includes(q); }) : options;
+        renderList(filtered);
+        // Kalau teks di search box nggak persis cocok lagi sama pilihan sebelumnya, kosongkan select-nya
+        if ($select.val() && $search.val() !== ($select.val() + ' — ' + ($select.find('option:selected').data('model') || '') + ' · ' + ($select.find('option:selected').data('date') || ''))) {
+            $select.val('').trigger('change');
+        }
+    });
+    $search.on('blur', function() {
+        setTimeout(function() { $dropdown.hide(); }, 150);
+    });
+
+    // Dipanggil pas reset form, biar search box ikut kekosongin
+    return function resetSearch() {
+        $search.val('');
+        $select.val('').trigger('change');
+        $dropdown.hide();
+    };
+}
+
+var resetFiEngineSearch = initSearchableEngineSelect('fi_engine_search', 'fi_engine_dropdown', 'fi_engine_select');
+var resetPkEngineSearch = initSearchableEngineSelect('pk_engine_search', 'pk_engine_dropdown', 'pk_engine_select');
 
 // -------------------------------------------------------
 // Load checklist Packing otomatis saat tab packing dibuka
