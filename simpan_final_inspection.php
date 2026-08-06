@@ -47,39 +47,44 @@ if (!mysqli_query($koneksi, $sql_header)) {
 }
 $fi_id = mysqli_insert_id($koneksi);
 
-// 2. Insert checklist items
-$items  = $_POST['item_name']  ?? [];
-$params = $_POST['parameter']  ?? [];
-$results= $_POST['result']     ?? [];
-$files  = $_FILES['foto']      ?? [];
-
-// Folder upload
+// 2. Upload foto per grup dulu (satu file per grup, dipakai bareng sama semua item di grup itu)
 $upload_dir = 'uploads/final_inspection/';
 if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
 
-foreach ($items as $i => $item_name) {
-    $item_esc  = mysqli_real_escape_string($koneksi, $item_name);
-    $param_esc = mysqli_real_escape_string($koneksi, $params[$i] ?? '');
-    $result    = in_array($results[$i] ?? '', ['OK','NG']) ? $results[$i] : 'OK';
-    $foto_path = '';
-
-    // Handle upload foto (di-resize & dikompres dulu biar file-nya nggak berat)
-    if (!empty($files['name'][$i]) && $files['error'][$i] === UPLOAD_ERR_OK) {
-        $ext       = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
-        $allowed   = ['jpg','jpeg','png','webp'];
-        if (in_array($ext, $allowed)) {
-            $filename  = 'fi_' . $fi_id . '_' . $i . '_' . time() . '.' . $ext;
-            $dest      = $upload_dir . $filename;
-            $saved     = resizeAndSaveImage($files['tmp_name'][$i], $dest, 1200, 75);
-            if ($saved) {
-                $foto_path = $saved;
-            }
+$group_photo_paths = []; // group_no => path foto yang sudah di-resize & disimpan
+$group_files = $_FILES['foto_group'] ?? [];
+if (!empty($group_files['name']) && is_array($group_files['name'])) {
+    foreach ($group_files['name'] as $group_no => $orig_name) {
+        if (empty($orig_name) || $group_files['error'][$group_no] !== UPLOAD_ERR_OK) continue;
+        $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+        $allowed = ['jpg','jpeg','png','webp'];
+        if (!in_array($ext, $allowed)) continue;
+        $filename = 'fi_' . $fi_id . '_grp' . $group_no . '_' . time() . '.' . $ext;
+        $dest     = $upload_dir . $filename;
+        $saved    = resizeAndSaveImage($group_files['tmp_name'][$group_no], $dest, 1200, 75);
+        if ($saved) {
+            $group_photo_paths[$group_no] = $saved;
         }
     }
+}
+
+// 3. Insert checklist items - tiap item pakai foto dari grup-nya (dari $group_photo_paths),
+// bukan upload sendiri-sendiri.
+$items       = $_POST['item_name']            ?? [];
+$params      = $_POST['parameter']             ?? [];
+$results     = $_POST['result']                ?? [];
+$item_groups = $_POST['foto_group_of_item']    ?? [];
+
+foreach ($items as $i => $item_name) {
+    $item_esc   = mysqli_real_escape_string($koneksi, $item_name);
+    $param_esc  = mysqli_real_escape_string($koneksi, $params[$i] ?? '');
+    $result     = in_array($results[$i] ?? '', ['OK','NG']) ? $results[$i] : 'OK';
+    $group_no   = intval($item_groups[$i] ?? 0);
+    $foto_path  = $group_photo_paths[$group_no] ?? '';
 
     $foto_esc = mysqli_real_escape_string($koneksi, $foto_path);
-    $sql_item = "INSERT INTO final_inspection_checklist (fi_id, item_name, parameter, result, foto_path)
-                 VALUES ($fi_id, '$item_esc', '$param_esc', '$result', '$foto_esc')";
+    $sql_item = "INSERT INTO final_inspection_checklist (fi_id, item_name, parameter, result, foto_path, foto_group)
+                 VALUES ($fi_id, '$item_esc', '$param_esc', '$result', '$foto_esc', $group_no)";
     mysqli_query($koneksi, $sql_item);
 }
 

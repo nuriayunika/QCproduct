@@ -1251,7 +1251,6 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             <th class="text-start" style="min-width:200px;">Inspection Item</th>
             <th class="text-start" style="min-width:200px;">Parameter / Standard</th>
             <th style="width:100px;">Hasil</th>
-            <th style="width:160px;">Foto</th>
         </tr>
     </thead>
     <tbody id="fi_tbody"></tbody>
@@ -2053,14 +2052,37 @@ $('#fi_engine_select').change(function(){
             var clone = tpl.content.cloneNode(true);
             var tbody = clone.querySelector('#fi_tbody');
 
+            var lastGroup = null;
             items.forEach(function(item, i) {
                 var param = item.parameter || '';
+                var group = item.foto_group || 0;
+
+                // Baris header grup foto - cuma dirender sekali tiap kali grup-nya ganti
+                if (group !== lastGroup) {
+                    lastGroup = group;
+                    var groupRow = document.createElement('tr');
+                    groupRow.style.background = '#fdf5f5';
+                    groupRow.innerHTML =
+                        '<td colspan="4" class="text-start py-2">' +
+                            '<div class="d-flex align-items-center gap-2 flex-wrap">' +
+                                '<span class="fw-bold" style="color:#7B1D1D;font-size:12px;"><i class="fa-solid fa-camera me-1"></i>Foto ' + group + (item.lokasi ? ' &mdash; ' + escHtml(item.lokasi) : '') + '</span>' +
+                                '<input type="file" name="foto_group[' + group + ']" accept="image/*" capture="environment" ' +
+                                'class="form-control form-control-sm fi-foto-group" style="font-size:10px; padding:2px 4px; max-width:220px;">' +
+                                '<div class="fi-preview-group" style="display:none;">' +
+                                    '<img src="" style="max-width:70px; max-height:55px; border-radius:4px; border:1px solid #dee2e6;">' +
+                                '</div>' +
+                            '</div>' +
+                        '</td>';
+                    tbody.appendChild(groupRow);
+                }
+
                 var row = document.createElement('tr');
                 row.innerHTML =
                     '<td class="text-center fw-bold text-muted">' + (i+1) + '</td>' +
                     '<td class="text-start fw-semibold">' +
                         '<input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">' +
                         '<input type="hidden" name="parameter[]" value="' + escHtml(param) + '">' +
+                        '<input type="hidden" name="foto_group_of_item[]" value="' + group + '">' +
                         escHtml(item.item_name) +
                     '</td>' +
                     '<td class="text-start text-muted" style="font-size:11px; white-space:pre-line;">' + escHtml(param) + '</td>' +
@@ -2069,13 +2091,6 @@ $('#fi_engine_select').change(function(){
                             '<option value="OK" style="color:green;">OK</option>' +
                             '<option value="NG" style="color:red;">NG</option>' +
                         '</select>' +
-                    '</td>' +
-                    '<td>' +
-                        '<input type="file" name="foto[' + i + ']" accept="image/*" capture="environment" ' +
-                        'class="form-control form-control-sm fi-foto" style="font-size:10px; padding:2px 4px;">' +
-                        '<div class="fi-preview mt-1" style="display:none;">' +
-                            '<img src="" style="max-width:80px; max-height:60px; border-radius:4px; border:1px solid #dee2e6;">' +
-                        '</div>' +
                     '</td>';
                 tbody.appendChild(row);
             });
@@ -2089,10 +2104,10 @@ $('#fi_engine_select').change(function(){
                 $(this).css('color', $(this).val() === 'NG' ? '#dc3545' : '#198754');
             });
 
-            // Preview foto
-            $(document).on('change', '.fi-foto', function(){
+            // Preview foto (per grup, bukan per item)
+            $(document).on('change', '.fi-foto-group', function(){
                 var file = this.files[0];
-                var preview = $(this).siblings('.fi-preview');
+                var preview = $(this).closest('div').find('.fi-preview-group');
                 if (file) {
                     var reader = new FileReader();
                     reader.onload = function(e) {
