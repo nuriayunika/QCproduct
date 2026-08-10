@@ -215,6 +215,7 @@ function generateFIHtml($row, $checklist, $logo_b64, $koneksi) {
 
     if ($checklist) {
         $html .= '<table class="data-tbl"><thead><tr><th>#</th><th>Item</th><th>Parameter</th><th>Result</th><th>Photo</th></tr></thead><tbody>';
+        $lastGroupPdf = null; $subCounterPdf = 0;
         foreach ($checklist as $i => $c) {
             $res = $c['result'] ?? '-';
             $color = ($res === 'OK') ? '#198754' : (($res === 'NG') ? '#dc3545' : '#666');
@@ -225,7 +226,11 @@ function generateFIHtml($row, $checklist, $logo_b64, $koneksi) {
                 $fb = 'data:' . $ft . ';base64,' . base64_encode(file_get_contents($fp));
                 $foto_td = '<td style="text-align:center;"><img src="' . $fb . '" style="max-width:60px;max-height:45px;border-radius:3px;border:0.5px solid #ddd;"></td>';
             }
-            $html .= '<tr><td>' . ($i+1) . '</td><td>' . e($c['item_name'] ?? '') . '</td><td style="font-size:7pt;color:#666;">' . e($c['parameter'] ?? '') . '</td>';
+            $grp = (int) ($c['foto_group'] ?? 0);
+            if ($grp !== $lastGroupPdf) { $lastGroupPdf = $grp; $subCounterPdf = 0; }
+            $subCounterPdf++;
+            $displayNo = $grp . '.' . $subCounterPdf;
+            $html .= '<tr><td>' . $displayNo . '</td><td>' . e($c['item_name'] ?? '') . '</td><td style="font-size:7pt;color:#666;">' . e($c['parameter'] ?? '') . '</td>';
             $html .= '<td style="color:' . $color . ';font-weight:bold;">' . e($res) . '</td>' . $foto_td . '</tr>';
         }
         $html .= '</tbody></table>';

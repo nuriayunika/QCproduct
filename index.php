@@ -1832,6 +1832,7 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += '<th style="width:70px;">Hasil</th>';
             if (hasInlineFoto) html += '<th style="width:70px;">Foto</th>';
             html += '</tr></thead><tbody>';
+            var lastGroupDetail = null, subCounterDetail = 0;
             checklist.forEach(function(c, i) {
                 var result = c.jawaban || c.result || '-';
                 var kategori = c.kategori || '';
@@ -1843,7 +1844,14 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
                 } else {
                     resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
                 }
-                html += '<tr><td class="text-center">' + (i+1) + '</td>';
+                var displayNo = (i+1);
+                if (modul === 'final_inspection') {
+                    var grp = c.foto_group || 0;
+                    if (grp !== lastGroupDetail) { lastGroupDetail = grp; subCounterDetail = 0; }
+                    subCounterDetail++;
+                    displayNo = grp + '.' + subCounterDetail;
+                }
+                html += '<tr><td class="text-center">' + displayNo + '</td>';
                 html += '<td>' + (c.item_name || c.item || '-') + '</td>';
                 if (modul === 'test_running') html += '<td>' + (c.kategori || '-') + '</td>';
                 if (modul !== 'test_running') html += '<td style="font-size:10px;color:#666;">' + (c.parameter || '') + '</td>';
@@ -2053,32 +2061,21 @@ $('#fi_engine_select').change(function(){
             var tbody = clone.querySelector('#fi_tbody');
 
             var lastGroup = null;
+            var subCounter = 0;
             items.forEach(function(item, i) {
                 var param = item.parameter || '';
                 var group = item.foto_group || 0;
 
-                // Baris header grup foto - cuma dirender sekali tiap kali grup-nya ganti
                 if (group !== lastGroup) {
                     lastGroup = group;
-                    var groupRow = document.createElement('tr');
-                    groupRow.style.background = '#fdf5f5';
-                    groupRow.innerHTML =
-                        '<td colspan="4" class="text-start py-2">' +
-                            '<div class="d-flex align-items-center gap-2 flex-wrap">' +
-                                '<span class="fw-bold" style="color:#7B1D1D;font-size:12px;"><i class="fa-solid fa-camera me-1"></i>Foto ' + group + (item.lokasi ? ' &mdash; ' + escHtml(item.lokasi) : '') + '</span>' +
-                                '<input type="file" name="foto_group[' + group + ']" accept="image/*" capture="environment" ' +
-                                'class="form-control form-control-sm fi-foto-group" style="font-size:10px; padding:2px 4px; max-width:220px;">' +
-                                '<div class="fi-preview-group" style="display:none;">' +
-                                    '<img src="" style="max-width:70px; max-height:55px; border-radius:4px; border:1px solid #dee2e6;">' +
-                                '</div>' +
-                            '</div>' +
-                        '</td>';
-                    tbody.appendChild(groupRow);
+                    subCounter = 0;
                 }
+                subCounter++;
+                var displayNo = group + '.' + subCounter;
 
                 var row = document.createElement('tr');
                 row.innerHTML =
-                    '<td class="text-center fw-bold text-muted">' + (i+1) + '</td>' +
+                    '<td class="text-center fw-bold text-muted">' + displayNo + '</td>' +
                     '<td class="text-start fw-semibold">' +
                         '<input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">' +
                         '<input type="hidden" name="parameter[]" value="' + escHtml(param) + '">' +
@@ -2093,6 +2090,31 @@ $('#fi_engine_select').change(function(){
                         '</select>' +
                     '</td>';
                 tbody.appendChild(row);
+
+                // Kalau ini item terakhir dalam grup foto ini (item berikutnya beda grup,
+                // atau ini item paling akhir), render baris foto SETELAH item-item grup ini.
+                var nextGroup = (i + 1 < items.length) ? (items[i+1].foto_group || 0) : null;
+                if (nextGroup !== group) {
+                    var groupRow = document.createElement('tr');
+                    groupRow.style.background = '#fdf5f5';
+                    groupRow.style.borderBottom = '2px solid #7B1D1D';
+                    groupRow.innerHTML =
+                        '<td colspan="3" class="align-middle py-2">' +
+                            '<div class="d-flex align-items-center gap-2" style="color:#7B1D1D;font-size:12px;">' +
+                                '<i class="fa-solid fa-camera"></i>' +
+                                '<span class="fw-bold">Foto ' + group + '</span>' +
+                                (item.lokasi ? '<span class="text-muted fw-normal">&mdash; ' + escHtml(item.lokasi) + '</span>' : '') +
+                            '</div>' +
+                        '</td>' +
+                        '<td class="align-middle py-2">' +
+                            '<input type="file" name="foto_group[' + group + ']" accept="image/*" capture="environment" ' +
+                            'class="form-control form-control-sm fi-foto-group" style="font-size:10px; padding:3px 6px;">' +
+                            '<div class="fi-preview-group mt-1" style="display:none;">' +
+                                '<img src="" style="max-width:60px; max-height:45px; border-radius:4px; border:1px solid #dee2e6; object-fit:cover;">' +
+                            '</div>' +
+                        '</td>';
+                    tbody.appendChild(groupRow);
+                }
             });
 
             container.empty().append(clone);
@@ -2107,7 +2129,7 @@ $('#fi_engine_select').change(function(){
             // Preview foto (per grup, bukan per item)
             $(document).on('change', '.fi-foto-group', function(){
                 var file = this.files[0];
-                var preview = $(this).closest('div').find('.fi-preview-group');
+                var preview = $(this).closest('td').find('.fi-preview-group');
                 if (file) {
                     var reader = new FileReader();
                     reader.onload = function(e) {
