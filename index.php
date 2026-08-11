@@ -1139,12 +1139,20 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <select name="engine_no" id="fi_engine_select" class="d-none" required>
                                             <option value="">- Pilih Engine (sudah Test Running, belum Final Inspection) -</option>
                                             <?php
+                                            // Engine boleh muncul lagi di dropdown kalau: belum pernah ada FI sama
+                                            // sekali, ATAU FI TERAKHIRNYA statusnya Rejected (operator perlu input ulang).
                                             $q_fi_eng = mysqli_query($koneksi, "
                                                 SELECT tr.engine_no, tr.engine_model, tr.test_date
                                                 FROM result_test_run tr
                                                 INNER JOIN approvals a ON a.test_run_id = tr.id AND a.stage='Test_Running' AND a.role='Foreman' AND a.status='approved'
-                                                LEFT JOIN final_inspection_data fi ON fi.engine_no = tr.engine_no
-                                                WHERE fi.id IS NULL
+                                                WHERE tr.engine_no NOT IN (
+                                                    SELECT fi.engine_no FROM final_inspection_data fi
+                                                    WHERE fi.id = (SELECT MAX(fi2.id) FROM final_inspection_data fi2 WHERE fi2.engine_no = fi.engine_no)
+                                                    AND NOT EXISTS (
+                                                        SELECT 1 FROM approvals ap
+                                                        WHERE ap.test_run_id = fi.id AND ap.stage = 'Final_Inspection' AND ap.status = 'rejected'
+                                                    )
+                                                )
                                                 ORDER BY tr.created_at DESC
                                             ");
                                             while ($fe = mysqli_fetch_assoc($q_fi_eng)) {
@@ -1264,7 +1272,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: PACKING (placeholder) ---- -->
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
-        <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk" autocomplete="off">
+        <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk" autocomplete="off" onsubmit="return validatePKForm(this)">
             <div class="card mb-3 shadow-sm">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
                     <div class="d-flex align-items-center gap-2 py-2 px-2">
@@ -1291,12 +1299,20 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <select name="engine_no" id="pk_engine_select" class="d-none" required>
                                             <option value="">- Pilih Engine (sudah Final Inspection, belum Packing) -</option>
                                             <?php
+                                            // Engine boleh muncul lagi kalau: belum pernah ada Packing sama sekali,
+                                            // ATAU Packing terakhirnya di-reject di level manapun (Foreman/Supervisor/Asst.Manager).
                                             $q_pk_eng = mysqli_query($koneksi, "
                                                 SELECT fi.engine_no, fi.engine_model, fi.inspect_date
                                                 FROM final_inspection_data fi
                                                 INNER JOIN approvals a ON a.test_run_id = fi.id AND a.stage='Final_Inspection' AND a.role='Supervisor' AND a.status='approved'
-                                                LEFT JOIN packing_data pk ON pk.engine_no = fi.engine_no
-                                                WHERE pk.id IS NULL
+                                                WHERE fi.engine_no NOT IN (
+                                                    SELECT pk.engine_no FROM packing_data pk
+                                                    WHERE pk.id = (SELECT MAX(pk2.id) FROM packing_data pk2 WHERE pk2.engine_no = pk.engine_no)
+                                                    AND NOT EXISTS (
+                                                        SELECT 1 FROM approvals ap
+                                                        WHERE ap.test_run_id = pk.id AND ap.stage = 'Packing' AND ap.status = 'rejected'
+                                                    )
+                                                )
                                                 ORDER BY fi.created_at DESC
                                             ");
                                             while ($pe = mysqli_fetch_assoc($q_pk_eng)) {
@@ -2159,6 +2175,38 @@ function escHtml(str) {
 // -------------------------------------------------------
 // VALIDASI FORM TEST RUNNING - semua field wajib
 // -------------------------------------------------------
+// -------------------------------------------------------
+// Validasi form Packing - semua item checklist wajib ada fotonya
+// -------------------------------------------------------
+function validatePKForm(form) {
+    var missing = [];
+    $(form).find('.pk-foto').each(function(i) {
+        var $foto = $(this);
+        var hasFile = this.files && this.files.length > 0;
+        // Cek apakah item ini punya foto lama (mode edit/lookup) - kalau ada preview yang udah keisi, anggap valid
+        var hasExistingPreview = $foto.closest('td').find('.pk-preview img').attr('src') ? true : false;
+        if (!hasFile && !hasExistingPreview) {
+            var itemName = $foto.closest('tr').find('td').eq(1).text().trim() || ('Item ke-' + (i+1));
+            missing.push(itemName);
+            $foto.css('border-color', '#dc3545');
+        } else {
+            $foto.css('border-color', '');
+        }
+    });
+
+    if (missing.length > 0) {
+        var listHtml = missing.slice(0, 15).map(m => '<li>' + m + '</li>').join('');
+        if (missing.length > 15) listHtml += '<li>... dan ' + (missing.length - 15) + ' item lainnya</li>';
+        document.getElementById('validasiModalBody').innerHTML =
+            '<p class="mb-2">Foto wajib diisi untuk semua item checklist. Item berikut belum ada fotonya:</p><ul class="mb-0" style="padding-left:18px;">' + listHtml + '</ul>';
+        var vm = new bootstrap.Modal(document.getElementById('validasiModal'));
+        vm.show();
+        $(form).find('.pk-foto').filter(function(){ return $(this).css('border-color') !== ''; }).first()[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
+    return true;
+}
+
 function validateTRForm(form) {
     var errors = [];
 

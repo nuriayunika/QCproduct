@@ -33,7 +33,17 @@ if (!$fi) {
     die("Engine No. ini belum di-approve Supervisor di Final Inspection, atau belum ada data Final Inspection-nya.");
 }
 
-$existing_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM packing_data WHERE engine_no = '$engine_no' LIMIT 1"));
+// Boleh submit ulang kalau: belum pernah ada Packing sama sekali, ATAU
+// Packing terakhirnya di-reject di level manapun.
+$existing_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "
+    SELECT pk.id FROM packing_data pk
+    WHERE pk.engine_no = '$engine_no'
+      AND pk.id = (SELECT MAX(id) FROM packing_data WHERE engine_no = '$engine_no')
+      AND NOT EXISTS (
+          SELECT 1 FROM approvals ap
+          WHERE ap.test_run_id = pk.id AND ap.stage = 'Packing' AND ap.status = 'rejected'
+      )
+"));
 if ($existing_pk) {
     die("Engine No. ini sudah ada data Packing-nya.");
 }
@@ -43,6 +53,22 @@ $operator     = mysqli_real_escape_string($koneksi, $_POST['operator_name']  ?? 
 $dicatat_oleh = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
 $pack_date    = date('Y-m-d');
 $noted        = mysqli_real_escape_string($koneksi, $_POST['noted'] ?? '');
+
+// Validasi: SEMUA item checklist wajib ada fotonya. Dicek dulu sebelum insert
+// apapun ke database, biar kalau ada yang kurang, submit ditolak total (bukan
+// setengah tersimpan).
+$items_check = $_POST['item_name'] ?? [];
+$files_check = $_FILES['foto']     ?? [];
+$missing_foto = [];
+foreach ($items_check as $i => $item_name) {
+    $has_file = !empty($files_check['name'][$i]) && $files_check['error'][$i] === UPLOAD_ERR_OK;
+    if (!$has_file) {
+        $missing_foto[] = $item_name;
+    }
+}
+if (!empty($missing_foto)) {
+    die("Foto wajib diisi untuk semua item checklist. Item berikut belum ada fotonya: " . implode(', ', $missing_foto));
+}
 
 // 1. Insert header
 $sql_header = "INSERT INTO packing_data (engine_no, engine_model, operator_name, dicatat_oleh, pack_date, noted)

@@ -28,7 +28,16 @@ if (!$tr) {
     header("location:index.php?fi_error=belum_approved_tr#final-inspection"); exit();
 }
 
-$existing_fi = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM final_inspection_data WHERE engine_no = '$engine_no' LIMIT 1"));
+// Boleh submit ulang kalau: belum pernah ada FI sama sekali, ATAU FI terakhirnya Rejected.
+$existing_fi = mysqli_fetch_assoc(mysqli_query($koneksi, "
+    SELECT fi.id FROM final_inspection_data fi
+    WHERE fi.engine_no = '$engine_no'
+      AND fi.id = (SELECT MAX(id) FROM final_inspection_data WHERE engine_no = '$engine_no')
+      AND NOT EXISTS (
+          SELECT 1 FROM approvals ap
+          WHERE ap.test_run_id = fi.id AND ap.stage = 'Final_Inspection' AND ap.status = 'rejected'
+      )
+"));
 if ($existing_fi) {
     header("location:index.php?fi_error=sudah_ada#final-inspection"); exit();
 }
