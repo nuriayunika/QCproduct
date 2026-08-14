@@ -170,7 +170,7 @@ function generateTRHtml($row, $checklist, $logo_b64, $koneksi) {
     $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC Actual</td><td>' . val($row,'fic_actual_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_actual_right') . '</td></tr>';
     $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC Before Test</td><td>' . val($row,'fic_before_test_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_before_test_right') . '</td></tr>';
     $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">FIC After Test</td><td>' . val($row,'fic_after_test_left') . '</td><td>&deg;/</td><td>' . val($row,'fic_after_test_right') . '</td></tr>';
-    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">Belt Tension 15-20mm</td><td>' . val($row,'belt_tension_left') . '</td><td>mm</td><td>' . val($row,'belt_tension_right') . '</td></tr>';
+    $html .= '<tr><td style="text-align:left;background:#7B1D1D;color:#fff;font-weight:bold;">Belt Tension 15-20mm</td><td>' . val($row,'belt_tension_left') . '</td><td colspan="2">mm</td></tr>';
     $html .= '</tbody></table>';
     $html .= '</td>';
 
@@ -269,7 +269,7 @@ function generatePKHtml($row, $checklist, $logo_b64, $koneksi) {
         }
         $html .= '</tbody></table>';
     }
-    $html .= approvalBox($approvals, [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor'],['role_key'=>'Asst_Manager','label'=>'Asst. Manager']]);
+    $html .= approvalBox($approvals, [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor']]);
     return $html;
 }
 
@@ -292,8 +292,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         $pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM packing_data WHERE engine_no='$en' LIMIT 1"));
         if ($pk) {
-            $apv = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$pk['id']} AND stage='Packing' AND role='Asst_Manager' AND status='approved'"));
-            if (!$apv) $warnings[] = "Engine <b>$en</b> – Packing belum di-approve Asisten Manager";
+            $apv = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$pk['id']} AND stage='Packing' AND role='Supervisor' AND status='approved'"));
+            if (!$apv) $warnings[] = "Engine <b>$en</b> – Packing belum di-approve Supervisor";
         }
     }
     echo json_encode(['warnings' => $warnings]);
@@ -373,10 +373,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['engine_nos'])) {
             }
         }
 
-        // PACKING - hanya jika sudah approved Asst_Manager
+        // PACKING - hanya jika sudah approved Supervisor (level final Packing sekarang)
         $pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT * FROM packing_data WHERE engine_no = '$en' ORDER BY id DESC LIMIT 1"));
         if ($pk) {
-            $apv_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$pk['id']} AND stage='Packing' AND role='Asst_Manager' AND status='approved'"));
+            $apv_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$pk['id']} AND stage='Packing' AND role='Supervisor' AND status='approved'"));
             if ($apv_pk) {
                 if (!$is_first) $mpdf->AddPage('L');
                 $is_first = false;

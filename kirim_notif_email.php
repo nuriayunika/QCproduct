@@ -135,7 +135,7 @@ function getEmailOperator($koneksi, $operator_name) {
  * Notifikasi setelah approve:
  * - Foreman approve Final Inspection → email ke Supervisor
  * - Foreman approve Packing          → email ke Supervisor
- * - Supervisor approve Packing       → email ke Asst. Manager
+ * - Supervisor approve Packing       → selesai (tidak ada email, sama seperti Test Running)
  */
 function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $approved_by, $reason = '') {
 
@@ -150,11 +150,8 @@ function notifApprovalAction($koneksi, $action, $stage, $role, $test_run_id, $ap
     } elseif ($stage === 'Packing' && $role === 'Foreman') {
         $next_role  = 'supervisor';
         $next_label = 'Supervisor';
-    } elseif ($stage === 'Packing' && $role === 'Supervisor') {
-        $next_role  = 'assistant_manager';
-        $next_label = 'Asst. Manager';
     } else {
-        return 'skipped: stage/role ini tidak butuh notifikasi (mis. Test Running = selesai di Foreman)';
+        return 'skipped: stage/role ini tidak butuh notifikasi (mis. Test Running = selesai di Foreman, Packing = selesai di Supervisor)';
     }
 
     $to = getEmailsByRole($koneksi, $next_role);

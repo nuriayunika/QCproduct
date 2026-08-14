@@ -43,7 +43,7 @@ $approved_by  = $_SESSION['nama_lengkap'] ?? $_SESSION['nama_user'] ?? 'Unknown'
 
 // Whitelist
 $allowedStages = ['Test_Running', 'Final_Inspection', 'Packing'];
-$allowedRoles  = ['Foreman', 'Supervisor', 'Asst_Manager'];
+$allowedRoles  = ['Foreman', 'Supervisor'];
 
 if (!in_array($stage, $allowedStages) || !in_array($role_approve, $allowedRoles) || $test_run_id <= 0) {
     echo json_encode(['status' => 'error', 'message' => 'Data tidak valid. Stage: '.$stage.' Role: '.$role_approve.' ID: '.$test_run_id]);

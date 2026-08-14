@@ -62,9 +62,9 @@ if ($modul === 'test_running') {
     if (!$row) die("Data tidak ditemukan.");
 
     $apv = mysqli_fetch_assoc(mysqli_query($koneksi,
-        "SELECT * FROM approvals WHERE test_run_id=$id AND stage='Packing' AND role='Asst_Manager' AND status='approved'"
+        "SELECT * FROM approvals WHERE test_run_id=$id AND stage='Packing' AND role='Supervisor' AND status='approved'"
     ));
-    if (!$apv) die("Data belum disetujui penuh. PDF hanya tersedia setelah Asisten Manager approve.");
+    if (!$apv) die("Data belum disetujui penuh. PDF hanya tersedia setelah Supervisor approve.");
 
     // Ambil checklist Packing
     $checklists = [];
@@ -121,7 +121,6 @@ $dicatat_oleh = $row['dicatat_oleh'] ?? '-';
 // Approval info
 $apv_foreman  = $apv_all['Foreman']    ?? null;
 $apv_super    = $apv_all['Supervisor'] ?? null;
-$apv_am       = $apv_all['Asst_Manager'] ?? null;
 
 ob_start(); ?>
 <!DOCTYPE html>
@@ -527,7 +526,7 @@ ob_start(); ?>
             <tr><td class="label-cell">Actual</td><td><?php echo val($row,'fic_actual_left'); ?> / <?php echo val($row,'fic_actual_right'); ?></td></tr>
             <tr><td class="label-cell">Before test</td><td><?php echo val($row,'fic_before_test_left'); ?> / <?php echo val($row,'fic_before_test_right'); ?></td></tr>
             <tr><td class="label-cell">After test</td><td><?php echo val($row,'fic_after_test_left'); ?> / <?php echo val($row,'fic_after_test_right'); ?></td></tr>
-            <tr><td class="label-cell">Belt tension</td><td><?php echo val($row,'belt_tension_left'); ?> / <?php echo val($row,'belt_tension_right'); ?> mm</td></tr>
+            <tr><td class="label-cell">Belt tension</td><td><?php echo val($row,'belt_tension_left'); ?> mm</td></tr>
         </tbody>
     </table>
 </td>
@@ -630,7 +629,7 @@ ob_start(); ?>
         ? [['key'=>'Foreman','label'=>'Foreman']]
         : ($modul==='final_inspection'
             ? [['key'=>'Foreman','label'=>'Foreman'],['key'=>'Supervisor','label'=>'Supervisor']]
-            : [['key'=>'Foreman','label'=>'Foreman'],['key'=>'Supervisor','label'=>'Supervisor'],['key'=>'Asst_Manager','label'=>'Asst. Manager']]);
+            : [['key'=>'Foreman','label'=>'Foreman'],['key'=>'Supervisor','label'=>'Supervisor']]);
     ?>
     <tr>
     <?php foreach($levels as $lvl):

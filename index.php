@@ -1031,8 +1031,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
                                                 <input type="text" name="belt_tension_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
-                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">mm</span>
-                                                <input type="text" name="belt_tension_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                                <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; color: var(--gray-md); border-radius: 0 4px 4px 0;">mm</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -1109,7 +1108,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-final-inspection" class="module-section">
     <div class="container-fluid pb-3">
 
-        <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi" autocomplete="off">
+        <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi" autocomplete="off" onsubmit="return validateFIForm(this)">
 
             <!-- HEADER CARD -->
             <div class="card mb-3 shadow-sm">
@@ -1447,10 +1446,10 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             <div class="card shadow-sm">
                 <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%);">
                     <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-box-archive me-2"></i>APPROVAL – PACKING</h5>
-                    <span class="badge" style="font-size:11px; background:rgba(255,255,255,0.2); color:#fff;">Level: <strong>Foreman → Supervisor → Asst. Manager</strong></span>
+                    <span class="badge" style="font-size:11px; background:rgba(255,255,255,0.2); color:#fff;">Level: <strong>Foreman → Supervisor</strong></span>
                 </div>
                 <div class="card-body p-3">
-                    <?php renderApprovalTable('packing_data', 'Packing', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor'],['role_key'=>'Asst_Manager','label'=>'Asst. Manager']], $role, $koneksi); ?>
+                    <?php renderApprovalTable('packing_data', 'Packing', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor']], $role, $koneksi); ?>
                 </div>
             </div>
         </div>
@@ -1494,16 +1493,16 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
     </div>
 </div>
 
-<!-- ---- TAB: PACKING APPROVAL (Foreman → Supervisor → Asisten Manager) ---- -->
+<!-- ---- TAB: PACKING APPROVAL (Foreman → Supervisor) ---- -->
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
         <div class="card shadow-sm">
             <div class="card-header py-2 d-flex align-items-center justify-content-between" style="background:linear-gradient(135deg,#3d1010,#5a1414);">
                 <h5 class="card-title m-0 fw-bold text-white"><i class="fa-solid fa-box-archive me-2"></i>APPROVAL – PACKING</h5>
-                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor → Asisten Manager</strong></span>
+                <span class="badge bg-light text-dark" style="font-size:11px;">Level: <strong>Foreman → Supervisor</strong></span>
             </div>
             <div class="card-body p-3">
-                <?php renderApprovalTable('packing_data', 'Packing', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor'],['role_key'=>'Asst_Manager','label'=>'Asst. Manager']], $role, $koneksi); ?>
+                <?php renderApprovalTable('packing_data', 'Packing', [['role_key'=>'Foreman','label'=>'Foreman'],['role_key'=>'Supervisor','label'=>'Supervisor']], $role, $koneksi); ?>
             </div>
         </div>
     </div>
@@ -1609,6 +1608,23 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
     setTimeout(clearFiOperator, 300); // jaga-jaga autofill browser yang telat jalan
 })();
 <?php endif; ?>
+
+// --- Auto-ping session, biar nggak expired selama halaman kebuka ---
+// (misal operator lagi lama ngisi form sambil ngukur di lapangan, session
+// jangan sampai keburu abis pas mau submit).
+(function() {
+    var pingInterval = 5 * 60 * 1000; // tiap 5 menit
+    function pingSession() {
+        $.get('ping_session.php', function(res) {
+            if (res && res.status === 'expired') {
+                showToast('danger', 'Sesi login sudah habis, silakan login ulang untuk melanjutkan.');
+            }
+        }).fail(function() {
+            // Koneksi gagal (mis. internet putus sebentar) - abaikan, coba lagi di ping berikutnya.
+        });
+    }
+    setInterval(pingSession, pingInterval);
+})();
 
 // --- Auto-switch tab dari URL hash atau query param ---
 $(document).ready(function(){
@@ -1949,7 +1965,7 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
             html += infoItem('FIC Actual', (cleanNum(row.fic_actual_left)||'-') + ' / ' + (cleanNum(row.fic_actual_right)||'-'));
             html += infoItem('FIC Before Test', (cleanNum(row.fic_before_test_left)||'-') + ' / ' + (cleanNum(row.fic_before_test_right)||'-'));
             html += infoItem('FIC After Test', (cleanNum(row.fic_after_test_left)||'-') + ' / ' + (cleanNum(row.fic_after_test_right)||'-'));
-            html += infoItem('Belt Tension', (cleanNum(row.belt_tension_left)||'-') + ' / ' + (cleanNum(row.belt_tension_right)||'-') + ' mm');
+            html += infoItem('Belt Tension', (cleanNum(row.belt_tension_left)||'-') + ' mm');
             html += infoItem('Correction α', row.correction_alpha);
             html += infoItem('Correction β', row.correction_beta);
             html += infoItem('Blow By', row.blow_by);
@@ -2176,6 +2192,36 @@ function escHtml(str) {
 // VALIDASI FORM TEST RUNNING - semua field wajib
 // -------------------------------------------------------
 // -------------------------------------------------------
+// Validasi form Final Inspection - semua grup foto wajib diisi
+// -------------------------------------------------------
+function validateFIForm(form) {
+    var missing = [];
+    $(form).find('.fi-foto-group').each(function() {
+        var $foto = $(this);
+        var hasFile = this.files && this.files.length > 0;
+        var hasExistingPreview = $foto.closest('td').find('.fi-preview-group img').attr('src') ? true : false;
+        if (!hasFile && !hasExistingPreview) {
+            var label = $foto.closest('tr').find('span.fw-bold').text().trim() || $foto.attr('name');
+            missing.push(label);
+            $foto.css('border-color', '#dc3545');
+        } else {
+            $foto.css('border-color', '');
+        }
+    });
+
+    if (missing.length > 0) {
+        var listHtml = missing.map(m => '<li>' + m + '</li>').join('');
+        document.getElementById('validasiModalBody').innerHTML =
+            '<p class="mb-2">Foto wajib diisi untuk semua grup. Grup berikut belum ada fotonya:</p><ul class="mb-0" style="padding-left:18px;">' + listHtml + '</ul>';
+        var vm = new bootstrap.Modal(document.getElementById('validasiModal'));
+        vm.show();
+        $(form).find('.fi-foto-group').filter(function(){ return $(this).css('border-color') !== ''; }).first()[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
+    return true;
+}
+
+// -------------------------------------------------------
 // Validasi form Packing - semua item checklist wajib ada fotonya
 // -------------------------------------------------------
 function validatePKForm(form) {
@@ -2279,8 +2325,7 @@ function validateTRForm(form) {
         { name: 'fic_before_test_right',label: 'FIC Before Test (kanan)' },
         { name: 'fic_after_test_left',  label: 'FIC After Test (kiri)' },
         { name: 'fic_after_test_right', label: 'FIC After Test (kanan)' },
-        { name: 'belt_tension_left',    label: 'Belt Tension (kiri)' },
-        { name: 'belt_tension_right',   label: 'Belt Tension (kanan)' },
+        { name: 'belt_tension_left',    label: 'Belt Tension' },
     ];
 
     requiredFields.forEach(function(f) {
