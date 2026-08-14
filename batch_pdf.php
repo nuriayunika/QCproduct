@@ -280,17 +280,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $warnings = [];
     foreach ($engine_nos as $engine_no) {
         $en = mysqli_real_escape_string($koneksi, $engine_no);
-        $tr = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM result_test_run WHERE engine_no='$en' LIMIT 1"));
+        $tr = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM result_test_run WHERE engine_no='$en' ORDER BY id DESC LIMIT 1"));
         if ($tr) {
             $apv = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$tr['id']} AND stage='Test_Running' AND role='Foreman' AND status='approved'"));
             if (!$apv) $warnings[] = "Engine <b>$en</b> – Test Running belum di-approve Foreman";
         }
-        $fi = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM final_inspection_data WHERE engine_no='$en' LIMIT 1"));
+        $fi = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM final_inspection_data WHERE engine_no='$en' ORDER BY id DESC LIMIT 1"));
         if ($fi) {
             $apv = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$fi['id']} AND stage='Final_Inspection' AND role='Supervisor' AND status='approved'"));
             if (!$apv) $warnings[] = "Engine <b>$en</b> – Final Inspection belum di-approve Supervisor";
         }
-        $pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM packing_data WHERE engine_no='$en' LIMIT 1"));
+        $pk = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM packing_data WHERE engine_no='$en' ORDER BY id DESC LIMIT 1"));
         if ($pk) {
             $apv = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM approvals WHERE test_run_id={$pk['id']} AND stage='Packing' AND role='Supervisor' AND status='approved'"));
             if (!$apv) $warnings[] = "Engine <b>$en</b> – Packing belum di-approve Supervisor";
