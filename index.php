@@ -386,7 +386,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 <th>Tgl Submit</th>
                 <th>Pipeline Approval</th>
                 <th>Status</th>
-                <?php if($canApprove): ?><th style="width:190px;">Aksi</th><?php endif; ?>
+                <?php if($myRoleDB): ?><th style="width:190px;">Aksi</th><?php endif; ?>
             </tr>
         </thead>
         <tbody>
@@ -477,28 +477,56 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 </td>
 
                 <!-- Tombol aksi -->
-                <?php if ($canApprove): ?>
+                <?php if ($myRoleDB): ?>
                 <td class="text-center">
-                    <?php if ($myStatus === 'approved'): ?>
-                        <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
-                            <i class="fa-solid fa-check me-1"></i>Sudah Approved
-                        </span>
+                    <?php $modul_detail = $stage === 'Test_Running' ? 'test_running' : ($stage === 'Final_Inspection' ? 'final_inspection' : 'packing'); ?>
+                    <?php if (!$canApprove): ?>
+                        <!-- Role ini bukan approver di stage ini (mis. Supervisor lihat Test Running) -
+                             tetap boleh Review data-nya, tapi tidak bisa Approve/Reject. -->
+                        <div class="d-flex flex-column align-items-center gap-1">
+                            <span class="badge <?php echo $badgeClass; ?> px-2 py-1" style="font-size:10px;">
+                                <i class="fa-solid <?php echo $badgeIcon; ?> me-1"></i><?php echo $finalStatus; ?>
+                            </span>
+                            <button class="btn btn-sm" style="background:#e9ecef;color:#333;font-size:10px;padding:2px 8px;"
+                                    onclick="lihatDetail(<?php echo $recordId; ?>, '<?php echo $modul_detail; ?>', <?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>', true)">
+                                <i class="fa-solid fa-eye me-1"></i>Review
+                            </button>
+                        </div>
+                    <?php elseif ($myStatus === 'approved'): ?>
+                        <div class="d-flex flex-column align-items-center gap-1">
+                            <span class="badge badge-approved px-2 py-1" style="font-size:10px;">
+                                <i class="fa-solid fa-check me-1"></i>Sudah Approved
+                            </span>
+                            <button class="btn btn-sm" style="background:#e9ecef;color:#333;font-size:10px;padding:2px 8px;"
+                                    onclick="lihatDetail(<?php echo $recordId; ?>, '<?php echo $modul_detail; ?>', <?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>', true)">
+                                <i class="fa-solid fa-eye me-1"></i>Review
+                            </button>
+                        </div>
                     <?php elseif ($myStatus === 'rejected'): ?>
-                        <span class="badge badge-rejected px-2 py-1" style="font-size:10px;">
-                            <i class="fa-solid fa-xmark me-1"></i>Sudah Rejected
-                        </span>
+                        <div class="d-flex flex-column align-items-center gap-1">
+                            <span class="badge badge-rejected px-2 py-1" style="font-size:10px;">
+                                <i class="fa-solid fa-xmark me-1"></i>Sudah Rejected
+                            </span>
+                            <button class="btn btn-sm" style="background:#e9ecef;color:#333;font-size:10px;padding:2px 8px;"
+                                    onclick="lihatDetail(<?php echo $recordId; ?>, '<?php echo $modul_detail; ?>', <?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>', true)">
+                                <i class="fa-solid fa-eye me-1"></i>Review
+                            </button>
+                        </div>
                     <?php elseif ($anyPrevReject): ?>
-                        <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
-                            <i class="fa-solid fa-ban me-1"></i>Ada yang Direject
-                        </span>
+                        <div class="d-flex flex-column align-items-center gap-1">
+                            <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
+                                <i class="fa-solid fa-ban me-1"></i>Ada yang Direject
+                            </span>
+                            <button class="btn btn-sm" style="background:#e9ecef;color:#333;font-size:10px;padding:2px 8px;"
+                                    onclick="lihatDetail(<?php echo $recordId; ?>, '<?php echo $modul_detail; ?>', <?php echo $recordId; ?>, '<?php echo $stage; ?>', '<?php echo $myRoleDB; ?>', true)">
+                                <i class="fa-solid fa-eye me-1"></i>Review
+                            </button>
+                        </div>
                     <?php elseif (!$prereqOk): ?>
                         <span class="badge badge-waiting px-2 py-1" style="font-size:10px;">
                             <i class="fa-solid fa-lock me-1"></i>Tunggu Level Sebelumnya
                         </span>
                     <?php else: ?>
-                        <?php
-                        $modul_detail = $stage === 'Test_Running' ? 'test_running' : ($stage === 'Final_Inspection' ? 'final_inspection' : 'packing');
-                        ?>
                         <div class="d-flex gap-1 justify-content-center">
                             <button class="btn btn-sm fw-bold"
                                     style="background:#5a1414;color:#fff;border:none;"
@@ -521,7 +549,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         <?php endwhile; ?>
         <?php if (!$found): ?>
             <tr>
-                <td colspan="<?php echo $canApprove ? 8 : 7; ?>" class="text-center text-muted py-5">
+                <td colspan="<?php echo $myRoleDB ? 8 : 7; ?>" class="text-center text-muted py-5">
                     <i class="fa-solid fa-inbox fa-2x mb-2 d-block"></i>
                     Belum ada data yang disubmit operator.
                 </td>
@@ -1526,7 +1554,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         <div class="modal-content">
             <div class="modal-header py-2" style="background:linear-gradient(135deg,#5a1414,#7B1D1D);">
                 <h5 class="modal-title fw-bold text-white">
-                    <i class="fa-solid fa-magnifying-glass me-2"></i>Detail Data
+                    <i class="fa-solid fa-magnifying-glass me-2"></i><span id="modalDetailTitleText">Detail Data</span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -1789,12 +1817,13 @@ function reloadKeepTab() {
 var _detail_id = 0, _detail_stage = '', _detail_role = '';
 var _detailModal = null;
 
-function lihatDetail(recordId, modul, approveId, stage, role) {
+function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
     _detail_id    = approveId;
     _detail_stage = stage;
     _detail_role  = role;
 
     if (!_detailModal) _detailModal = new bootstrap.Modal(document.getElementById('modalDetailData'));
+    document.getElementById('modalDetailTitleText').textContent = readOnly ? 'Review Data (Read Only)' : 'Detail Data';
 
     // Reset modal
     document.getElementById('modalDetailBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border" style="color:#7B1D1D;"></div><div class="mt-2 text-muted">Memuat data...</div></div>';
@@ -1976,12 +2005,14 @@ function lihatDetail(recordId, modul, approveId, stage, role) {
 
         document.getElementById('modalDetailBody').innerHTML = html;
 
-        // Footer dengan tombol Approve/Reject
+        // Footer: mode Review (readOnly) cuma tombol Tutup, mode normal ada Approve/Reject
         var footer = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>';
-        footer += '<button class="btn btn-success fw-bold ms-2" onclick="_detailModal.hide(); doApprove(_detail_id, _detail_stage, _detail_role);">';
-        footer += '<i class="fa-solid fa-check me-1"></i>Approve</button>';
-        footer += '<button class="btn btn-danger fw-bold ms-2" onclick="_detailModal.hide(); openRejectModal(_detail_id, _detail_stage, _detail_role);">';
-        footer += '<i class="fa-solid fa-xmark me-1"></i>Reject</button>';
+        if (!readOnly) {
+            footer += '<button class="btn btn-success fw-bold ms-2" onclick="_detailModal.hide(); doApprove(_detail_id, _detail_stage, _detail_role);">';
+            footer += '<i class="fa-solid fa-check me-1"></i>Approve</button>';
+            footer += '<button class="btn btn-danger fw-bold ms-2" onclick="_detailModal.hide(); openRejectModal(_detail_id, _detail_stage, _detail_role);">';
+            footer += '<i class="fa-solid fa-xmark me-1"></i>Reject</button>';
+        }
         document.getElementById('modalDetailFooter').innerHTML = footer;
 
     }, 'json').fail(function() {
