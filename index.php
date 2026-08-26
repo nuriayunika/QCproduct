@@ -86,10 +86,13 @@ $is_approver = (
         ============================================= */
         .top-navbar {
             background: linear-gradient(135deg, var(--maroon-dk) 0%, var(--maroon) 60%, var(--maroon-lt) 100%);
-            border-radius: 10px;
-            padding: 10px 18px;
+            padding: 10px 24px;
             box-shadow: 0 4px 15px rgba(123,29,29,0.25);
-            margin: 12px 12px 0 12px;
+            margin: 0 0 12px 0;
+            width: 100%;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
         }
 
         /* Nav buttons operator */
@@ -284,6 +287,22 @@ $is_approver = (
         .pipeline-step.reject { background:#f8d7da; color:#58151c; border-color:#f1aeb5; }
         .pipeline-arrow { color:#adb5bd; font-size:9px; margin:0 2px; }
         .approval-table th { font-size:11px; vertical-align:middle; background:linear-gradient(90deg,#5a1414,#7B1D1D); color:#fff; }
+        .excel-filter-btn { cursor:pointer; margin-left:4px; padding:2px 4px; }
+        .excel-filter-btn:hover { opacity:0.8; }
+        .excel-filter-panel {
+            position:absolute; top:100%; left:0; z-index:2000;
+            background:#fff; border:1px solid #d0d0d0; border-radius:6px;
+            box-shadow:0 6px 18px rgba(0,0,0,0.2); padding:10px;
+            min-width:200px; max-width:260px; margin-top:4px;
+            color:#333; font-weight:normal; text-transform:none; letter-spacing:normal;
+        }
+        .excel-filter-list { max-height:180px; overflow-y:auto; border:1px solid #eee; border-radius:4px; padding:4px 6px; }
+        .excel-filter-list label { display:block; font-size:12px; font-weight:normal; padding:2px 0; cursor:pointer; }
+        .excel-filter-actions { font-size:11px; }
+        .excel-filter-actions a { color:#7B1D1D; text-decoration:none; cursor:pointer; }
+        .excel-filter-actions a:hover { text-decoration:underline; }
+        .excel-filter-footer { display:flex; gap:6px; margin-top:8px; }
+        .excel-filter-footer .btn { flex:1; font-size:11px; padding:4px 8px; }
         .approval-table td { font-size:12px; vertical-align:middle; }
         .approval-table tr:hover td { background-color:#fdf5f5; transition: background 0.15s; }
         .badge-pending  { background-color:#ffc107; color:#212529; }
@@ -353,9 +372,65 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         return;
     }
 
-    // Ambil semua data submit operator
+    // Filter kolom ala Excel: Engine Model & Operator bisa pilih BANYAK nilai sekaligus
+    // (checkbox), Tgl Submit pakai rentang dari-sampai. Engine No pakai search teks
+    // (bukan checkbox, soalnya variasi nomornya kebanyakan). Nama parameter unik per stage.
+    $filterPfx    = strtolower($stage);
+    $fltEngineNo  = trim($_GET['flt_engineno_' . $filterPfx] ?? '');
+    $fltModels    = array_filter((array) ($_GET['flt_model_' . $filterPfx] ?? []));
+    $fltOperators = array_filter((array) ($_GET['flt_operator_' . $filterPfx] ?? []));
+    $fltDateFrom  = trim($_GET['flt_datefrom_' . $filterPfx] ?? '');
+    $fltDateTo    = trim($_GET['flt_dateto_' . $filterPfx] ?? '');
+
+    $dateCol = ($stage === 'Test_Running') ? 'test_date' : 'created_at';
+
+    $whereParts = [];
+    if ($fltEngineNo !== '') {
+        $whereParts[] = "engine_no LIKE '%" . mysqli_real_escape_string($koneksi, $fltEngineNo) . "%'";
+    }
+    if (count($fltModels) > 0) {
+        $esc = array_map(function($v) use ($koneksi) { return "'" . mysqli_real_escape_string($koneksi, $v) . "'"; }, $fltModels);
+        $whereParts[] = "engine_model IN (" . implode(',', $esc) . ")";
+    }
+    if (count($fltOperators) > 0) {
+        $esc = array_map(function($v) use ($koneksi) { return "'" . mysqli_real_escape_string($koneksi, $v) . "'"; }, $fltOperators);
+        $whereParts[] = "operator_name IN (" . implode(',', $esc) . ")";
+    }
+    if ($fltDateFrom !== '') {
+        $whereParts[] = "DATE(`$dateCol`) >= '" . mysqli_real_escape_string($koneksi, $fltDateFrom) . "'";
+    }
+    if ($fltDateTo !== '') {
+        $whereParts[] = "DATE(`$dateCol`) <= '" . mysqli_real_escape_string($koneksi, $fltDateTo) . "'";
+    }
+    $whereSql = count($whereParts) > 0 ? ('WHERE ' . implode(' AND ', $whereParts)) : '';
+    $anyFilterActive = ($fltEngineNo !== '' || count($fltModels) > 0 || count($fltOperators) > 0 || $fltDateFrom !== '' || $fltDateTo !== '');
+
+    // Ambil daftar pilihan unik buat checklist filter (dari SEMUA data, bukan yang sudah
+    // difilter, supaya pilihan lain tetap terlihat & bisa dicentang meski sedang memfilter).
+    $modelOptions = [];
+    $mq = mysqli_query($koneksi, "SELECT DISTINCT engine_model FROM `$dataTable` WHERE engine_model IS NOT NULL AND engine_model != '' ORDER BY engine_model ASC");
+    if ($mq) while ($mr = mysqli_fetch_assoc($mq)) $modelOptions[] = $mr['engine_model'];
+
+    $operatorOptions = [];
+    $oq = mysqli_query($koneksi, "SELECT DISTINCT operator_name FROM `$dataTable` WHERE operator_name IS NOT NULL AND operator_name != '' ORDER BY operator_name ASC");
+    if ($oq) while ($or_ = mysqli_fetch_assoc($oq)) $operatorOptions[] = $or_['operator_name'];
+
+    // Paginasi: 50 data per halaman. Nama parameter GET unik per stage,
+    // supaya kalau ada 2+ tabel approval di halaman yang sama, halamannya independen.
+    $pageKey  = 'pg_' . strtolower($stage);
+    $perPage  = 50;
+    $curPage  = max(1, intval($_GET[$pageKey] ?? 1));
+    $offset   = ($curPage - 1) * $perPage;
+
+    $totalRes   = mysqli_query($koneksi, "SELECT COUNT(*) AS c FROM `$dataTable` $whereSql");
+    $totalRows  = $totalRes ? (int) mysqli_fetch_assoc($totalRes)['c'] : 0;
+    $totalPages = max(1, ceil($totalRows / $perPage));
+    if ($curPage > $totalPages) $curPage = $totalPages;
+    $offset = ($curPage - 1) * $perPage;
+
+    // Ambil data submit operator (difilter + dibatasi per halaman)
     $rows = mysqli_query($koneksi,
-        "SELECT * FROM `$dataTable` ORDER BY id DESC"
+        "SELECT * FROM `$dataTable` $whereSql ORDER BY id DESC LIMIT $perPage OFFSET $offset"
     );
     if (!$rows) {
         echo '<div class="alert alert-warning mb-0">Query gagal: '.mysqli_error($koneksi).'</div>';
@@ -375,15 +450,98 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         }
     }
 ?>
+    <?php if ($anyFilterActive): ?>
+    <div class="mb-2">
+        <a href="<?php
+            $keepParams = $_GET;
+            foreach (['flt_engineno_', 'flt_model_', 'flt_operator_', 'flt_datefrom_', 'flt_dateto_', 'pg_'] as $pfx) unset($keepParams[$pfx . $filterPfx]);
+            echo htmlspecialchars('index.php?' . http_build_query($keepParams));
+        ?>" onclick="saveApprovalTabState();" class="btn btn-sm btn-outline-secondary fw-bold">
+            <i class="fa-solid fa-xmark me-1"></i>Reset Semua Filter
+        </a>
+    </div>
+    <?php endif; ?>
     <div class="table-responsive">
     <table class="table table-bordered table-hover approval-table mb-0">
         <thead>
             <tr>
                 <th style="width:40px;">#</th>
-                <th>Engine No.</th>
-                <th>Engine Model</th>
-                <th>Operator</th>
-                <th>Tgl Submit</th>
+                <th style="position:relative;">
+                    Engine No.
+                    <span class="excel-filter-btn" onclick="toggleFilterPanel('fp_engineno_<?php echo $filterPfx; ?>')">
+                        <i class="fa-solid fa-magnifying-glass" style="font-size:10px; color:<?php echo $fltEngineNo !== '' ? '#ffc107' : 'rgba(255,255,255,0.6)'; ?>;"></i>
+                    </span>
+                    <div id="fp_engineno_<?php echo $filterPfx; ?>" class="excel-filter-panel" style="display:none; min-width:200px;">
+                        <label class="d-block mb-1" style="font-size:11px;font-weight:600;">Cari Engine No.</label>
+                        <input type="text" id="engineno_<?php echo $filterPfx; ?>" class="form-control form-control-sm mb-2"
+                               placeholder="Ketik nomor engine..." value="<?php echo htmlspecialchars($fltEngineNo); ?>"
+                               onkeydown="if(event.key==='Enter'){applyExcelSearch('<?php echo $filterPfx; ?>');}">
+                        <div class="excel-filter-footer">
+                            <button type="button" class="btn btn-sm fw-bold" style="background:#7B1D1D;color:#fff;" onclick="applyExcelSearch('<?php echo $filterPfx; ?>')">Cari</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeFilterPanel(this)">Batal</button>
+                        </div>
+                    </div>
+                </th>
+                <th style="position:relative;">
+                    Engine Model
+                    <span class="excel-filter-btn" onclick="toggleFilterPanel('fp_model_<?php echo $filterPfx; ?>')">
+                        <i class="fa-solid fa-filter" style="font-size:10px; color:<?php echo count($fltModels) > 0 ? '#ffc107' : 'rgba(255,255,255,0.6)'; ?>;"></i>
+                    </span>
+                    <div id="fp_model_<?php echo $filterPfx; ?>" class="excel-filter-panel" style="display:none;">
+                        <input type="text" class="excel-filter-search form-control form-control-sm mb-1" placeholder="Cari model..." oninput="filterPanelSearch(this)">
+                        <div class="excel-filter-actions mb-1">
+                            <a href="#" onclick="checkAllInPanel(this);return false;">Pilih Semua</a> &middot;
+                            <a href="#" onclick="uncheckAllInPanel(this);return false;">Kosongkan</a>
+                        </div>
+                        <div class="excel-filter-list">
+                            <?php foreach ($modelOptions as $mo): ?>
+                            <label><input type="checkbox" value="<?php echo htmlspecialchars($mo); ?>" <?php echo in_array($mo, $fltModels) ? 'checked' : ''; ?>> <?php echo htmlspecialchars($mo); ?></label>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="excel-filter-footer">
+                            <button type="button" class="btn btn-sm fw-bold" style="background:#7B1D1D;color:#fff;" onclick="applyExcelFilter('<?php echo $filterPfx; ?>', 'flt_model_<?php echo $filterPfx; ?>', this)">Terapkan</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeFilterPanel(this)">Batal</button>
+                        </div>
+                    </div>
+                </th>
+                <th style="position:relative;">
+                    Operator
+                    <span class="excel-filter-btn" onclick="toggleFilterPanel('fp_operator_<?php echo $filterPfx; ?>')">
+                        <i class="fa-solid fa-filter" style="font-size:10px; color:<?php echo count($fltOperators) > 0 ? '#ffc107' : 'rgba(255,255,255,0.6)'; ?>;"></i>
+                    </span>
+                    <div id="fp_operator_<?php echo $filterPfx; ?>" class="excel-filter-panel" style="display:none;">
+                        <input type="text" class="excel-filter-search form-control form-control-sm mb-1" placeholder="Cari operator..." oninput="filterPanelSearch(this)">
+                        <div class="excel-filter-actions mb-1">
+                            <a href="#" onclick="checkAllInPanel(this);return false;">Pilih Semua</a> &middot;
+                            <a href="#" onclick="uncheckAllInPanel(this);return false;">Kosongkan</a>
+                        </div>
+                        <div class="excel-filter-list">
+                            <?php foreach ($operatorOptions as $oo): ?>
+                            <label><input type="checkbox" value="<?php echo htmlspecialchars($oo); ?>" <?php echo in_array($oo, $fltOperators) ? 'checked' : ''; ?>> <?php echo htmlspecialchars($oo); ?></label>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="excel-filter-footer">
+                            <button type="button" class="btn btn-sm fw-bold" style="background:#7B1D1D;color:#fff;" onclick="applyExcelFilter('<?php echo $filterPfx; ?>', 'flt_operator_<?php echo $filterPfx; ?>', this)">Terapkan</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeFilterPanel(this)">Batal</button>
+                        </div>
+                    </div>
+                </th>
+                <th style="position:relative;">
+                    Tgl Submit
+                    <span class="excel-filter-btn" onclick="toggleFilterPanel('fp_date_<?php echo $filterPfx; ?>')">
+                        <i class="fa-solid fa-filter" style="font-size:10px; color:<?php echo ($fltDateFrom !== '' || $fltDateTo !== '') ? '#ffc107' : 'rgba(255,255,255,0.6)'; ?>;"></i>
+                    </span>
+                    <div id="fp_date_<?php echo $filterPfx; ?>" class="excel-filter-panel" style="display:none; min-width:220px;">
+                        <label class="d-block mb-1" style="font-size:11px;font-weight:600;">Dari tanggal</label>
+                        <input type="date" id="datefrom_<?php echo $filterPfx; ?>" class="form-control form-control-sm mb-2" value="<?php echo htmlspecialchars($fltDateFrom); ?>">
+                        <label class="d-block mb-1" style="font-size:11px;font-weight:600;">Sampai tanggal</label>
+                        <input type="date" id="dateto_<?php echo $filterPfx; ?>" class="form-control form-control-sm mb-2" value="<?php echo htmlspecialchars($fltDateTo); ?>">
+                        <div class="excel-filter-footer">
+                            <button type="button" class="btn btn-sm fw-bold" style="background:#7B1D1D;color:#fff;" onclick="applyExcelDateFilter('<?php echo $filterPfx; ?>')">Terapkan</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeFilterPanel(this)">Batal</button>
+                        </div>
+                    </div>
+                </th>
                 <th>Pipeline Approval</th>
                 <th>Status</th>
                 <?php if($myRoleDB): ?><th style="width:190px;">Aksi</th><?php endif; ?>
@@ -558,6 +716,33 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         </tbody>
     </table>
     </div>
+    <?php if ($totalRows > 0): ?>
+    <div class="d-flex justify-content-between align-items-center mt-2 px-1" style="font-size:12px;">
+        <span class="text-muted">
+            Menampilkan <?php echo $offset + 1; ?>–<?php echo min($offset + $perPage, $totalRows); ?> dari <?php echo $totalRows; ?> data
+            (Halaman <?php echo $curPage; ?> / <?php echo $totalPages; ?>)
+        </span>
+        <div class="d-flex gap-2">
+            <?php
+            $qsParams = $_GET;
+            $qsParams[$pageKey] = max(1, $curPage - 1);
+            $prevUrl = 'index.php?' . http_build_query($qsParams);
+            $qsParams[$pageKey] = min($totalPages, $curPage + 1);
+            $nextUrl = 'index.php?' . http_build_query($qsParams);
+            ?>
+            <a href="<?php echo htmlspecialchars($prevUrl); ?>"
+               onclick="saveApprovalTabState();"
+               class="btn btn-sm <?php echo $curPage <= 1 ? 'btn-secondary disabled' : 'btn-outline-secondary'; ?> fw-bold">
+                <i class="fa-solid fa-chevron-left me-1"></i>Previous
+            </a>
+            <a href="<?php echo htmlspecialchars($nextUrl); ?>"
+               onclick="saveApprovalTabState();"
+               class="btn btn-sm <?php echo $curPage >= $totalPages ? 'btn-secondary disabled' : 'btn-outline-secondary'; ?> fw-bold">
+                Next<i class="fa-solid fa-chevron-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
 <?php
 } // end renderApprovalTable
 ?>
@@ -788,8 +973,10 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <input type="hidden" name="chk_item[]" value="<?php echo $l['item_checking']; ?>">
                                         <input type="hidden" name="chk_type[]" value="Leakage Check">
                                         <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
+                                            <option value="" selected>Pilih</option>
                                             <option value="Yes">Yes</option>
                                             <option value="No">No</option>
+                                            <option value="Rework">Rework</option>
                                         </select>
                                     </div>
                                 <?php } ?>
@@ -806,9 +993,11 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $a['item_checking']; ?></span>
                                         <input type="hidden" name="chk_item[]" value="<?php echo $a['item_checking']; ?>">
                                         <input type="hidden" name="chk_type[]" value="Assembly Check">
-                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
-                                            <option value="Yes">Yes</option>
-                                            <option value="No">No</option>
+                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary assembly-check-sel" style="min-width: 90px; max-width: 100px;">
+                                            <option value="" selected>Pilih</option>
+                                            <option value="OK">OK</option>
+                                            <option value="NG">NG</option>
+                                            <option value="Rework">Rework</option>
                                         </select>
                                     </div>
                                 <?php } ?>
@@ -825,10 +1014,11 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $f['item_checking']; ?></span>
                                         <input type="hidden" name="chk_item[]" value="<?php echo $f['item_checking']; ?>">
                                         <input type="hidden" name="chk_type[]" value="Function of Component">
-                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
+                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary function-comp-sel" style="min-width: 90px; max-width: 100px;">
+                                            <option value="" selected>Pilih</option>
                                             <option value="OK">OK</option>
                                             <option value="NG">NG</option>
-                                            <option value="-">-</option>
+                                            <option value="Rework">Rework</option>
                                         </select>
                                     </div>
                                 <?php } ?>
@@ -1242,6 +1432,51 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             Pilih Engine Model terlebih dahulu untuk memuat daftar checklist.
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- STANDARD LIMIT SAMPLE FOR REFERENCES -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header py-2" style="background:linear-gradient(90deg,#5a1414,#7B1D1D);">
+                    <h6 class="m-0 fw-bold text-white" style="letter-spacing:0.5px;">
+                        <i class="fa-solid fa-image me-2"></i>STANDARD LIMIT SAMPLE FOR REFERENCES
+                    </h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2">
+                        <?php
+                        $ref_dir = 'uploads/reference_photos/';
+                        $ref_any_missing = false;
+                        for ($rf = 1; $rf <= 6; $rf++):
+                            $ref_found = null;
+                            foreach (['jpg', 'jpeg', 'png', 'webp'] as $ext) {
+                                $candidate = $ref_dir . 'foto' . $rf . '.' . $ext;
+                                if (file_exists($candidate)) { $ref_found = $candidate; break; }
+                            }
+                            if (!$ref_found) $ref_any_missing = true;
+                        ?>
+                        <div class="col-6 col-md-4 col-lg-2">
+                            <?php if ($ref_found): ?>
+                            <a href="<?php echo htmlspecialchars($ref_found); ?>" target="_blank">
+                                <img src="<?php echo htmlspecialchars($ref_found); ?>" alt="Contoh Foto <?php echo $rf; ?>"
+                                     class="w-100 rounded border" style="aspect-ratio:1/1; object-fit:cover;">
+                            </a>
+                            <div class="text-center text-muted mt-1" style="font-size:10px;">Contoh Foto <?php echo $rf; ?></div>
+                            <?php else: ?>
+                            <div class="border rounded d-flex flex-column align-items-center justify-content-center text-muted"
+                                 style="aspect-ratio:1/1; background:#f5f5f5;">
+                                <i class="fa-solid fa-camera fa-lg mb-1" style="opacity:0.4;"></i>
+                                <span style="font-size:10px;">Contoh Foto <?php echo $rf; ?></span>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endfor; ?>
+                    </div>
+                    <?php if ($ref_any_missing): ?>
+                    <div class="text-muted mt-2" style="font-size:11px;">
+                        <i class="fa-solid fa-circle-info me-1"></i>Placeholder sementara — foto contoh asli akan dipasang setelah tersedia.
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -1792,7 +2027,90 @@ function submitReject() {
 }
 
 // --- Reload tapi tetap di tab yang sama ---
-function reloadKeepTab() {
+// -------------------------------------------------------
+// Filter ala Excel (kolom Engine Model / Operator / Tgl Submit di dashboard Approval)
+// -------------------------------------------------------
+function toggleFilterPanel(id) {
+    document.querySelectorAll('.excel-filter-panel').forEach(function(p) {
+        if (p.id !== id) p.style.display = 'none';
+    });
+    var panel = document.getElementById(id);
+    if (!panel) return;
+    panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+}
+function closeFilterPanel(btn) {
+    btn.closest('.excel-filter-panel').style.display = 'none';
+}
+function filterPanelSearch(input) {
+    var q = input.value.toLowerCase();
+    var list = input.closest('.excel-filter-panel').querySelector('.excel-filter-list');
+    list.querySelectorAll('label').forEach(function(lbl) {
+        lbl.style.display = lbl.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+    });
+}
+function checkAllInPanel(link) {
+    var panel = link.closest('.excel-filter-panel');
+    panel.querySelectorAll('.excel-filter-list label').forEach(function(lbl) {
+        if (lbl.style.display !== 'none') lbl.querySelector('input[type=checkbox]').checked = true;
+    });
+}
+function uncheckAllInPanel(link) {
+    var panel = link.closest('.excel-filter-panel');
+    panel.querySelectorAll('.excel-filter-list input[type=checkbox]').forEach(function(cb) { cb.checked = false; });
+}
+// Tutup panel filter kalau klik di luar panel/tombol corongnya
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.excel-filter-panel') && !e.target.closest('.excel-filter-btn')) {
+        document.querySelectorAll('.excel-filter-panel').forEach(function(p) { p.style.display = 'none'; });
+    }
+});
+
+// Bangun URL baru: ganti param filter tertentu, reset paginasi stage itu ke halaman 1,
+// param lain (tabel/stage lain) tetap dipertahankan.
+function navigateWithFilter(filterPfx, updates) {
+    saveApprovalTabState();
+    var params = new URLSearchParams(window.location.search);
+    Object.keys(updates).forEach(function(key) {
+        var toDelete = [];
+        params.forEach(function(v, k) { if (k === key || k === key + '[]') toDelete.push(k); });
+        toDelete.forEach(function(k) { params.delete(k); });
+    });
+    params.delete('pg_' + filterPfx);
+    Object.keys(updates).forEach(function(key) {
+        var val = updates[key];
+        if (Array.isArray(val)) {
+            val.forEach(function(v) { params.append(key + '[]', v); });
+        } else if (val !== '' && val !== null && val !== undefined) {
+            params.set(key, val);
+        }
+    });
+    var qs = params.toString();
+    window.location.href = 'index.php' + (qs ? '?' + qs : '');
+}
+function applyExcelFilter(filterPfx, paramName, btn) {
+    var panel = btn.closest('.excel-filter-panel');
+    var checked = [];
+    panel.querySelectorAll('.excel-filter-list input[type=checkbox]:checked').forEach(function(cb) { checked.push(cb.value); });
+    var updates = {};
+    updates[paramName] = checked;
+    navigateWithFilter(filterPfx, updates);
+}
+function applyExcelDateFilter(filterPfx) {
+    var from = document.getElementById('datefrom_' + filterPfx).value;
+    var to   = document.getElementById('dateto_' + filterPfx).value;
+    var updates = {};
+    updates['flt_datefrom_' + filterPfx] = from;
+    updates['flt_dateto_' + filterPfx]   = to;
+    navigateWithFilter(filterPfx, updates);
+}
+function applyExcelSearch(filterPfx) {
+    var val = document.getElementById('engineno_' + filterPfx).value.trim();
+    var updates = {};
+    updates['flt_engineno_' + filterPfx] = val;
+    navigateWithFilter(filterPfx, updates);
+}
+
+function saveApprovalTabState() {
     // Cek apakah sedang di mode approval foreman (sec-approval-mode aktif)
     var approvalMode = document.getElementById('sec-approval-mode');
     if (approvalMode && approvalMode.style.display === 'block') {
@@ -1810,6 +2128,10 @@ function reloadKeepTab() {
             sessionStorage.setItem('activeApprovalTab', activeBtn.id.replace('btn-', ''));
         }
     }
+}
+
+function reloadKeepTab() {
+    saveApprovalTabState();
     location.reload();
 }
 
@@ -1902,6 +2224,8 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
                     // Khusus Leakage Check: "No" = tidak ada kebocoran = bagus (hijau),
                     // "Yes" = ada kebocoran = masalah (merah) - kebalikan dari kategori lain.
                     resultColor = (result === 'No') ? '#198754' : (result === 'Yes') ? '#dc3545' : '#666';
+                } else if (result === 'Rework') {
+                    resultColor = '#e0a800';
                 } else {
                     resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
                 }
@@ -2050,8 +2374,49 @@ function showToast(type, msg) {
 <?php if($is_operator): ?>
 // --- AJAX load spec engine model ---
 $(document).ready(function(){
+    // Opsi "Not Use" cuma muncul buat kombinasi model + item tertentu:
+    // - Assembly Check "Connection of wiring harnesses are correct?" -> cuma model EJ & LE
+    // - Assembly Check "Is CW thermo switch using red threebond?"     -> cuma model 120
+    // - Function of Component "Headlamp"                              -> cuma model 120
+    function updateAssemblyNotUseOptions(model) {
+        model = (model || '').toUpperCase();
+        var isEJorLE = model.indexOf('EJ') !== -1 || model.indexOf('LE') !== -1;
+        var is120    = model.indexOf('120') !== -1;
+
+        function applyRule($sel, needsNotUse) {
+            var hasNotUse = $sel.find('option[value="Not Use"]').length > 0;
+            if (needsNotUse && !hasNotUse) {
+                $sel.append('<option value="Not Use">Not Use</option>');
+            } else if (!needsNotUse && hasNotUse) {
+                if ($sel.val() === 'Not Use') $sel.val('');
+                $sel.find('option[value="Not Use"]').remove();
+            }
+        }
+
+        $('.assembly-check-sel').each(function() {
+            var $sel = $(this);
+            var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
+            var needsNotUse = false;
+            if (itemName.indexOf('Connection of wiring harnesses are correct') !== -1 && isEJorLE) needsNotUse = true;
+            if (itemName.indexOf('Is CW thermo switch using red threebond') !== -1 && is120) needsNotUse = true;
+            applyRule($sel, needsNotUse);
+        });
+
+        $('.function-comp-sel').each(function() {
+            var $sel = $(this);
+            var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
+            var isLE = model.indexOf('LE') !== -1;
+            var needsNotUse = (itemName.indexOf('Headlamp') !== -1 && model !== '' && !isLE);
+            applyRule($sel, needsNotUse);
+        });
+    }
+
+    // Jalankan sekali pas load, jaga-jaga browser masih nyimpen pilihan model sebelumnya
+    updateAssemblyNotUseOptions($('#engine_model').val());
+
     $('#engine_model').change(function(){
         var model = $(this).val();
+        updateAssemblyNotUseOptions(model);
         if(model){
             $.ajax({
                 url:'ambil_master_spec.php', type:'POST', data:{engine_model:model}, dataType:'json',
@@ -2080,6 +2445,20 @@ $(document).ready(function(){
             $('#cont_power,#max_power,#lbl_hi_idle,#fic_standard').val('');
             $('#std_output_lbl,#std_torque_lbl,#std_load_lbl,#std_fuel_mm3_lbl,#std_fuel_gkwh_lbl,#std_sd_lbl,#lbl_ex_r1,#lbl_oil_r1,#lbl_lo_r1,#std_correct_co_lbl,#lbl_speed1,#lbl_speed2,#lbl_speed3').text('-');
         }
+    });
+
+    // Color coding Assembly Check: OK hijau, NG merah, Rework kuning, Not Use abu-abu
+    $(document).on('change', '.assembly-check-sel', function(){
+        var v = $(this).val();
+        var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : (v === 'Not Use' ? '#6c757d' : '#333')));
+        $(this).css('color', color);
+    });
+
+    // Color coding Function of Component: sama polanya
+    $(document).on('change', '.function-comp-sel', function(){
+        var v = $(this).val();
+        var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : (v === 'Not Use' ? '#6c757d' : '#333')));
+        $(this).css('color', color);
     });
 });
 <?php endif; ?>
@@ -2148,8 +2527,10 @@ $('#fi_engine_select').change(function(){
                     '<td class="text-start text-muted" style="font-size:11px; white-space:pre-line;">' + escHtml(param) + '</td>' +
                     '<td>' +
                         '<select name="result[]" class="form-select form-select-sm text-center fw-bold fi-result-sel" style="min-width:70px;">' +
+                            '<option value="" selected>Pilih</option>' +
                             '<option value="OK" style="color:green;">OK</option>' +
                             '<option value="NG" style="color:red;">NG</option>' +
+                            '<option value="Rework" style="color:#e0a800;">Rework</option>' +
                         '</select>' +
                     '</td>';
                 tbody.appendChild(row);
@@ -2184,9 +2565,11 @@ $('#fi_engine_select').change(function(){
             counter.text(items.length + ' item checklist');
             submitBtn.prop('disabled', false);
 
-            // Color coding hasil OK/NG
+            // Color coding hasil OK/NG/Rework
             $(document).on('change', '.fi-result-sel', function(){
-                $(this).css('color', $(this).val() === 'NG' ? '#dc3545' : '#198754');
+                var v = $(this).val();
+                var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : '#333'));
+                $(this).css('color', color);
             });
 
             // Preview foto (per grup, bukan per item)
@@ -2223,10 +2606,12 @@ function escHtml(str) {
 // VALIDASI FORM TEST RUNNING - semua field wajib
 // -------------------------------------------------------
 // -------------------------------------------------------
-// Validasi form Final Inspection - semua grup foto wajib diisi
+// Validasi form Final Inspection - semua grup foto wajib diisi + semua hasil wajib dipilih
 // -------------------------------------------------------
 function validateFIForm(form) {
     var missing = [];
+    var missingResult = [];
+
     $(form).find('.fi-foto-group').each(function() {
         var $foto = $(this);
         var hasFile = this.files && this.files.length > 0;
@@ -2240,13 +2625,33 @@ function validateFIForm(form) {
         }
     });
 
-    if (missing.length > 0) {
-        var listHtml = missing.map(m => '<li>' + m + '</li>').join('');
-        document.getElementById('validasiModalBody').innerHTML =
-            '<p class="mb-2">Foto wajib diisi untuk semua grup. Grup berikut belum ada fotonya:</p><ul class="mb-0" style="padding-left:18px;">' + listHtml + '</ul>';
+    $(form).find('.fi-result-sel').each(function() {
+        var $sel = $(this);
+        if ($sel.val() === '') {
+            var itemName = $sel.closest('tr').find('td').eq(1).clone().children().remove().end().text().trim();
+            missingResult.push(itemName || 'Item checklist');
+            $sel.css('border-color', '#dc3545');
+        } else {
+            $sel.css('border-color', '');
+        }
+    });
+
+    if (missing.length > 0 || missingResult.length > 0) {
+        var html = '';
+        if (missingResult.length > 0) {
+            var listResult = missingResult.slice(0, 15).map(m => '<li>' + m + '</li>').join('');
+            if (missingResult.length > 15) listResult += '<li>... dan ' + (missingResult.length - 15) + ' item lainnya</li>';
+            html += '<p class="mb-2">Hasil checklist wajib dipilih (OK/NG) untuk semua item. Item berikut belum dipilih:</p><ul class="mb-3" style="padding-left:18px;">' + listResult + '</ul>';
+        }
+        if (missing.length > 0) {
+            var listHtml = missing.map(m => '<li>' + m + '</li>').join('');
+            html += '<p class="mb-2">Foto wajib diisi untuk semua grup. Grup berikut belum ada fotonya:</p><ul class="mb-0" style="padding-left:18px;">' + listHtml + '</ul>';
+        }
+        document.getElementById('validasiModalBody').innerHTML = html;
         var vm = new bootstrap.Modal(document.getElementById('validasiModal'));
         vm.show();
-        $(form).find('.fi-foto-group').filter(function(){ return $(this).css('border-color') !== ''; }).first()[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        var $firstBad = $(form).find('.fi-result-sel, .fi-foto-group').filter(function(){ return $(this).css('border-color') !== ''; }).first();
+        if ($firstBad.length) $firstBad[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
         return false;
     }
     return true;
@@ -2286,6 +2691,48 @@ function validatePKForm(form) {
 
 function validateTRForm(form) {
     var errors = [];
+
+    // Leakage Check: default sekarang kosong ("Pilih"), wajib dipilih Yes/No/Rework
+    $(form).find('input[name="chk_type[]"]').each(function() {
+        if ($(this).val() !== 'Leakage Check') return;
+        var $row = $(this).closest('div');
+        var $sel = $row.find('select[name="chk_val[]"]');
+        var itemName = $row.find('input[name="chk_item[]"]').val();
+        if ($sel.val() === '') {
+            errors.push('Leakage Check - ' + itemName);
+            $sel.css('border-color', '#dc3545');
+        } else {
+            $sel.css('border-color', '');
+        }
+    });
+
+    // Assembly Check: sama, default kosong ("Pilih"), wajib dipilih OK/NG/Not Use/Rework
+    $(form).find('input[name="chk_type[]"]').each(function() {
+        if ($(this).val() !== 'Assembly Check') return;
+        var $row = $(this).closest('div');
+        var $sel = $row.find('select[name="chk_val[]"]');
+        var itemName = $row.find('input[name="chk_item[]"]').val();
+        if ($sel.val() === '') {
+            errors.push('Assembly Check - ' + itemName);
+            $sel.css('border-color', '#dc3545');
+        } else {
+            $sel.css('border-color', '');
+        }
+    });
+
+    // Function of Component: sama, default kosong ("Pilih"), wajib dipilih OK/NG/Not Use/Rework
+    $(form).find('input[name="chk_type[]"]').each(function() {
+        if ($(this).val() !== 'Function of Component') return;
+        var $row = $(this).closest('div');
+        var $sel = $row.find('select[name="chk_val[]"]');
+        var itemName = $row.find('input[name="chk_item[]"]').val();
+        if ($sel.val() === '') {
+            errors.push('Function of Component - ' + itemName);
+            $sel.css('border-color', '#dc3545');
+        } else {
+            $sel.css('border-color', '');
+        }
+    });
 
     // Field teks/number wajib
     var requiredFields = [
@@ -2414,6 +2861,25 @@ function initSearchableEngineSelect(searchId, dropdownId, selectId) {
     var $dropdown = $('#' + dropdownId);
     var $select   = $('#' + selectId);
 
+    // Tombol "x" buat clear cepat (biar nggak perlu hapus manual huruf satu-satu
+    // kalau salah pilih engine dan mau ganti).
+    $search.css('padding-right', '28px');
+    var $clearBtn = $('<button type="button" tabindex="-1" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:none; color:#999; font-size:16px; line-height:1; padding:2px 6px; display:none; z-index:5;">&times;</button>');
+    $search.parent().css('position', 'relative').append($clearBtn);
+
+    function toggleClearBtn() {
+        $clearBtn.toggle($search.val().trim() !== '');
+    }
+    toggleClearBtn();
+
+    $clearBtn.on('mousedown', function(e) {
+        e.preventDefault(); // supaya blur nggak duluan nutup dropdown / kehilangan fokus
+        $search.val('');
+        $select.val('').trigger('change');
+        toggleClearBtn();
+        $search.trigger('focus').trigger('click');
+    });
+
     // Ambil semua opsi (kecuali placeholder kosong) jadi array data
     var options = [];
     $select.find('option').each(function() {
@@ -2440,6 +2906,7 @@ function initSearchableEngineSelect(searchId, dropdownId, selectId) {
                     $select.val(item.value).trigger('change');
                     $search.val(item.value + ' — ' + item.model + ' · ' + item.date);
                     $dropdown.hide();
+                    toggleClearBtn();
                 });
                 $dropdown.append($row);
             });
@@ -2451,11 +2918,15 @@ function initSearchableEngineSelect(searchId, dropdownId, selectId) {
     }
 
     $search.on('focus click', function() {
+        // Pilih semua teksnya sekalian, biar kalau mau ganti tinggal ngetik langsung timpa
+        // (nggak perlu hapus manual huruf satu-satu).
+        this.select();
         var q = $(this).val().toLowerCase();
         var filtered = q ? options.filter(function(o) { return (o.value + ' ' + o.model).toLowerCase().includes(q); }) : options;
         renderList(filtered);
     });
     $search.on('input', function() {
+        toggleClearBtn();
         var q = $(this).val().toLowerCase();
         var filtered = q ? options.filter(function(o) { return (o.value + ' ' + o.model).toLowerCase().includes(q); }) : options;
         renderList(filtered);
@@ -2473,6 +2944,7 @@ function initSearchableEngineSelect(searchId, dropdownId, selectId) {
         $search.val('');
         $select.val('').trigger('change');
         $dropdown.hide();
+        toggleClearBtn();
     };
 }
 
