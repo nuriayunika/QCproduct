@@ -450,8 +450,8 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         }
     }
 ?>
-    <?php if ($anyFilterActive): ?>
-    <div class="mb-2">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <?php if ($anyFilterActive): ?>
         <a href="<?php
             $keepParams = $_GET;
             foreach (['flt_engineno_', 'flt_model_', 'flt_operator_', 'flt_datefrom_', 'flt_dateto_', 'pg_'] as $pfx) unset($keepParams[$pfx . $filterPfx]);
@@ -459,8 +459,17 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         ?>" onclick="saveApprovalTabState();" class="btn btn-sm btn-outline-secondary fw-bold">
             <i class="fa-solid fa-xmark me-1"></i>Reset Semua Filter
         </a>
+        <?php else: ?>
+        <span></span>
+        <?php endif; ?>
+        <a href="<?php
+            $exportParams = $_GET;
+            $exportParams['stage'] = $stage;
+            echo htmlspecialchars('export_approval_csv.php?' . http_build_query($exportParams));
+        ?>" class="btn btn-sm fw-bold" style="background:#198754;color:#fff;">
+            <i class="fa-solid fa-file-csv me-1"></i>Export CSV<?php echo $anyFilterActive ? ' (sesuai filter)' : ''; ?>
+        </a>
     </div>
-    <?php endif; ?>
     <div class="table-responsive">
     <table class="table table-bordered table-hover approval-table mb-0">
         <thead>
@@ -610,14 +619,20 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
                 <!-- Pipeline -->
                 <td>
-                    <div class="d-flex align-items-center flex-wrap gap-1">
+                    <div class="d-flex align-items-start flex-wrap gap-1">
                     <?php foreach ($levels as $i => $lvl):
                         $st  = $levelStatus[$lvl['role_key']] ?? 'pending';
                         $lbl = $lvl['label'];
                         $cls = ($st==='approved') ? 'done' : (($st==='rejected') ? 'reject' : 'active');
                         $ico = ($st==='approved') ? 'fa-check' : (($st==='rejected') ? 'fa-xmark' : 'fa-hourglass-half');
+                        $apvRow = $apvRecord[$lvl['role_key']] ?? null;
+                        echo '<div class="d-flex flex-column align-items-center">';
                         echo '<span class="pipeline-step '.$cls.'"><i class="fa-solid '.$ico.' me-1"></i>'.$lbl.'</span>';
-                        if ($i < count($levels)-1) echo '<span class="pipeline-arrow"><i class="fa-solid fa-chevron-right"></i></span>';
+                        if ($apvRow && !empty($apvRow['created_at'])) {
+                            echo '<span class="text-muted" style="font-size:9px;margin-top:2px;">' . date('d/m/y H:i', strtotime($apvRow['created_at'])) . '</span>';
+                        }
+                        echo '</div>';
+                        if ($i < count($levels)-1) echo '<span class="pipeline-arrow" style="margin-top:6px;"><i class="fa-solid fa-chevron-right"></i></span>';
                     endforeach; ?>
                     </div>
                     <?php if ($rejectNote): ?>
@@ -627,7 +642,6 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                     <?php endif; ?>
                 </td>
 
-                <!-- Status akhir -->
                 <td class="text-center">
                     <span class="badge <?php echo $badgeClass; ?> px-2 py-1" style="font-size:11px;">
                         <i class="fa-solid <?php echo $badgeIcon; ?> me-1"></i><?php echo $finalStatus; ?>
