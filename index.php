@@ -2328,7 +2328,7 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
                 }
                 html += '<tr><td class="text-center">' + displayNo + '</td>';
                 html += '<td>' + (c.item_name || c.item || '-');
-                if (result === 'Rework' && c.repair_note) {
+                if (c.repair_note) {
                     html += '<div class="mt-1" style="font-size:10px;color:#997404;background:#fff8e1;padding:3px 6px;border-radius:4px;border-left:2px solid #e0a800;"><i class="fa-solid fa-wrench me-1"></i>' + escHtml(c.repair_note) + '</div>';
                 }
                 html += '</td>';
@@ -2360,7 +2360,26 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
         }
 
         // ---- PERFORMANCE DATA (Test Running only) ----
-        if (modul === 'test_running') {
+        // Kolom yang punya Standard di-cek NG-nya (warna merah) sama persis kayak di form input,
+        // makanya perlu ambil dulu spec model-nya (Standard-nya beda-beda per model).
+        function renderTRPerformanceAndFinish(dynamicStd) {
+            dynamicStd = dynamicStd || {};
+
+            // Cek 1 nilai keluar dari rentang standard atau nggak (gabungan standard dinamis
+            // per-model + standard statis yang sama buat semua model)
+            function cellNG(fieldName, rawVal) {
+                var val = cleanNum(rawVal);
+                var display = (val === null || val === undefined || val === '') ? '-' : val;
+                var stdText = dynamicStd[fieldName] || TR_FIELD_STD_STATIC[fieldName] || '';
+                var range = parseStandardRange(stdText);
+                var isNG = false;
+                if (range && val !== null && val !== undefined && val !== '') {
+                    var num = parseFloat(val);
+                    if (!isNaN(num)) isNG = (num < range.min || num > range.max);
+                }
+                return isNG ? ('<td class="fw-bold" style="color:#dc3545;background:#fff5f5;">' + display + '</td>') : ('<td>' + display + '</td>');
+            }
+
             html += '<div class="fw-bold my-2" style="font-size:12px;color:#7B1D1D;"><i class="fa-solid fa-chart-line me-1"></i>Data Performance (Data 1 & Data 2)</div>';
             html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:10px;">';
             html += '<thead>';
@@ -2374,23 +2393,23 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
             html += '<th>Exhaust°C</th><th>Oil°C</th><th>LO Mpa</th><th>Intake kPa</th><th>Exhaust kPa</th><th>NOx</th><th>CO</th><th>CO2%</th><th>O2%</th><th>Correct CO</th>';
             html += '</tr></thead><tbody>';
             html += '<tr><td>1</td><td>' + (cleanNum(row.r1_eng_speed)||cleanNum(row.eng_speed_max)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_actual_nm)||'-') + '</td><td>' + (cleanNum(row.r1_corrected_kw)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_torque_nm)||'-') + '</td><td>' + (cleanNum(row.r1_load_kgm)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_fuel_cc_30sec)||'-') + '</td><td>' + (cleanNum(row.r1_fuel_mm3_st)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_fuel_g_kwh)||'-') + '</td><td>' + (cleanNum(row.r1_sd_bsu)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_temp_exhaust)||'-') + '</td><td>' + (cleanNum(row.r1_temp_oil)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r1_lo_press)||'-') + '</td><td>' + (cleanNum(row.r1_intake_press)||'-') + '</td>';
+            html += cellNG('r1_actual_nm', row.r1_actual_nm) + cellNG('r1_corrected_kw', row.r1_corrected_kw);
+            html += cellNG('r1_torque_nm', row.r1_torque_nm) + cellNG('r1_load_kgm', row.r1_load_kgm);
+            html += '<td>' + (cleanNum(row.r1_fuel_cc_30sec)||'-') + '</td>' + cellNG('r1_fuel_mm3_st', row.r1_fuel_mm3_st);
+            html += cellNG('r1_fuel_g_kwh', row.r1_fuel_g_kwh) + cellNG('r1_sd_bsu', row.r1_sd_bsu);
+            html += cellNG('r1_temp_exhaust', row.r1_temp_exhaust) + cellNG('r1_temp_oil', row.r1_temp_oil);
+            html += cellNG('r1_lo_press', row.r1_lo_press) + '<td>' + (cleanNum(row.r1_intake_press)||'-') + '</td>';
             html += '<td>' + (cleanNum(row.r1_exhaust_press)||'-') + '</td><td>' + (cleanNum(row.r1_nox)||'-') + '</td>';
             html += '<td>' + (cleanNum(row.r1_co)||'-') + '</td><td>' + (cleanNum(row.r1_co2)||'-') + '</td>';
             html += '<td>' + (cleanNum(row.r1_o2)||'-') + '</td><td>-</td></tr>';
             html += '<tr><td>2</td><td>' + (cleanNum(row.eng_speed_min)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r2_actual_nm)||'-') + '</td><td>' + (cleanNum(row.r2_corrected_kw)||'-') + '</td>';
+            html += cellNG('r2_actual_nm', row.r2_actual_nm) + cellNG('r2_corrected_kw', row.r2_corrected_kw);
             html += '<td colspan="6" style="background:#eee;"></td>';
-            html += '<td>' + (cleanNum(row.r2_temp_exhaust)||'-') + '</td><td>-</td>';
-            html += '<td>' + (cleanNum(row.r2_lo_press)||'-') + '</td><td>' + (cleanNum(row.r2_intake_press)||'-') + '</td>';
+            html += cellNG('r2_temp_exhaust', row.r2_temp_exhaust) + '<td>-</td>';
+            html += cellNG('r2_lo_press', row.r2_lo_press) + '<td>' + (cleanNum(row.r2_intake_press)||'-') + '</td>';
             html += '<td>' + (cleanNum(row.r2_exhaust_press)||'-') + '</td><td>' + (cleanNum(row.r2_nox)||'-') + '</td>';
             html += '<td>' + (cleanNum(row.r2_co)||'-') + '</td><td>' + (cleanNum(row.r2_co2)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r2_o2)||'-') + '</td><td>' + (cleanNum(row.r2_correct_co)||'-') + '</td></tr>';
+            html += '<td>' + (cleanNum(row.r2_o2)||'-') + '</td>' + cellNG('r2_correct_co', row.r2_correct_co) + '</tr>';
             html += '</tbody></table></div>';
 
             // Additional Data
@@ -2399,12 +2418,27 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
             html += '<thead><tr style="background:#5a1414;color:#fff;"><th>Eng.Speed</th><th>Torque Nm</th><th>Coolant°C</th><th>Curr.Glow</th><th>Curr.Wire</th><th>Box LO</th><th>Air Intake</th><th>Bolt CW</th><th>Inj.Injector</th><th>Inj.FOP</th><th>Nut Joint</th></tr></thead>';
             html += '<tbody><tr>';
             html += '<td>' + (cleanNum(row.eng_speed_max)||'-') + '</td><td>' + (cleanNum(row.r3_torque_nm)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r3_coolant_temp)||'-') + '</td><td>' + (cleanNum(row.r3_current_glow)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r3_current_wire)||'-') + '</td><td>' + (cleanNum(row.r3_torque_switch_lo)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r3_torque_pipe_air)||'-') + '</td><td>' + (cleanNum(row.r3_torque_bolt_cw)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r3_torque_injection_injector)||'-') + '</td><td>' + (cleanNum(row.r3_torque_injection_fop)||'-') + '</td>';
-            html += '<td>' + (cleanNum(row.r3_torque_nut_joint)||'-') + '</td>';
+            html += cellNG('r3_coolant_temp', row.r3_coolant_temp) + '<td>' + (cleanNum(row.r3_current_glow)||'-') + '</td>';
+            html += '<td>' + (cleanNum(row.r3_current_wire)||'-') + '</td>' + cellNG('r3_torque_switch_lo', row.r3_torque_switch_lo);
+            html += cellNG('r3_torque_pipe_air', row.r3_torque_pipe_air) + cellNG('r3_torque_bolt_cw', row.r3_torque_bolt_cw);
+            html += cellNG('r3_torque_injection_injector', row.r3_torque_injection_injector) + cellNG('r3_torque_injection_fop', row.r3_torque_injection_fop);
+            html += cellNG('r3_torque_nut_joint', row.r3_torque_nut_joint);
             html += '</tr></tbody></table></div>';
+
+            // Helper buat infoItem yang perlu tanda NG (dipakai di FIC/Correction di bawah)
+            function infoItemNG(label, fieldName, rawVal, suffix) {
+                var val = cleanNum(rawVal);
+                var display = (val === null || val === undefined || val === '') ? '-' : (val + (suffix||''));
+                var stdText = TR_FIELD_STD_STATIC[fieldName] || '';
+                var range = parseStandardRange(stdText);
+                var isNG = false;
+                if (range && val !== null && val !== undefined && val !== '') {
+                    var num = parseFloat(val);
+                    if (!isNaN(num)) isNG = (num < range.min || num > range.max);
+                }
+                var color = isNG ? 'color:#dc3545;font-weight:bold;' : 'color:#333;';
+                return '<div class="col-md-3 col-6"><div style="font-size:10px;color:#7B1D1D;font-weight:600;">' + label + '</div><div style="font-size:12px;' + color + '">' + display + '</div></div>';
+            }
 
             // Correction & FIC
             html += '<div class="row g-2 mt-2">';
@@ -2412,31 +2446,65 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
             html += infoItem('FIC Actual', (cleanNum(row.fic_actual_left)||'-') + ' / ' + (cleanNum(row.fic_actual_right)||'-'));
             html += infoItem('FIC Before Test', (cleanNum(row.fic_before_test_left)||'-') + ' / ' + (cleanNum(row.fic_before_test_right)||'-'));
             html += infoItem('FIC After Test', (cleanNum(row.fic_after_test_left)||'-') + ' / ' + (cleanNum(row.fic_after_test_right)||'-'));
-            html += infoItem('Belt Tension', (cleanNum(row.belt_tension_left)||'-') + ' mm');
+            html += infoItemNG('Belt Tension', 'belt_tension_left', row.belt_tension_left, ' mm');
             html += infoItem('Correction α', row.correction_alpha);
             html += infoItem('Correction β', row.correction_beta);
-            html += infoItem('Blow By', row.blow_by);
-            html += infoItem('Min eng. Speed when LO switch ON ≤500 rpm', (cleanNum(row.min_eng_speed_lo)||'-') + ' rpm');
-            html += infoItem('Distance of Pulley Crank Shaft to Ring Gear (std 92-93 mm/96-97 mm)', (cleanNum(row.pulley_distance)||'-') + ' mm');
+            html += infoItemNG('Blow By', 'blow_by', row.blow_by, '');
+            html += infoItemNG('Min eng. Speed when LO switch ON ≤500 rpm', 'min_eng_speed_lo', row.min_eng_speed_lo, ' rpm');
+            html += infoItemNG('Distance of Pulley Crank Shaft to Ring Gear (std 92-93 mm)', 'pulley_distance', row.pulley_distance, ' mm');
             html += '</div>';
+
+            finalizeDetailModal();
         }
 
-        document.getElementById('modalDetailBody').innerHTML = html;
+        function finalizeDetailModal() {
+            document.getElementById('modalDetailBody').innerHTML = html;
 
-        // Footer: mode Review (readOnly) cuma tombol Tutup, mode normal ada Approve/Reject
-        var footer = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>';
-        if (!readOnly) {
-            footer += '<button class="btn btn-success fw-bold ms-2" onclick="_detailModal.hide(); doApprove(_detail_id, _detail_stage, _detail_role);">';
-            footer += '<i class="fa-solid fa-check me-1"></i>Approve</button>';
-            footer += '<button class="btn btn-danger fw-bold ms-2" onclick="_detailModal.hide(); openRejectModal(_detail_id, _detail_stage, _detail_role);">';
-            footer += '<i class="fa-solid fa-xmark me-1"></i>Reject</button>';
+            // Footer: mode Review (readOnly) cuma tombol Tutup, mode normal ada Approve/Reject
+            var footer = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>';
+            if (!readOnly) {
+                footer += '<button class="btn btn-success fw-bold ms-2" onclick="_detailModal.hide(); doApprove(_detail_id, _detail_stage, _detail_role);">';
+                footer += '<i class="fa-solid fa-check me-1"></i>Approve</button>';
+                footer += '<button class="btn btn-danger fw-bold ms-2" onclick="_detailModal.hide(); openRejectModal(_detail_id, _detail_stage, _detail_role);">';
+                footer += '<i class="fa-solid fa-xmark me-1"></i>Reject</button>';
+            }
+            document.getElementById('modalDetailFooter').innerHTML = footer;
         }
-        document.getElementById('modalDetailFooter').innerHTML = footer;
 
+        if (modul === 'test_running' && row.engine_model) {
+            // Ambil Standard dinamis sesuai model dulu, BARU bangun tabel performance-nya
+            // (biar bisa kasih warna merah ke yang di luar rentang)
+            $.ajax({
+                url: 'ambil_master_spec.php', type: 'POST', data: { engine_model: row.engine_model }, dataType: 'json',
+                success: function(spec) {
+                    var dynamicStd = {
+                        'r1_corrected_kw': spec.output || '',
+                        'r1_torque_nm':    spec.torque || '',
+                        'r1_load_kgm':     spec.load || '',
+                        'r1_fuel_mm3_st':  spec.fuel_mm3 || '',
+                        'r1_fuel_g_kwh':   spec.fuel_gkwh || '',
+                        'r1_sd_bsu':       spec.sd_bsu || '',
+                        'r1_temp_exhaust': spec.exhaust || '',
+                        'r2_temp_exhaust': spec.exhaust || '',
+                        'r1_temp_oil':     spec.oil_temp || '',
+                        'r1_lo_press':     spec.lo || '',
+                        'r2_lo_press':     spec.lo || '',
+                        'r2_correct_co':   spec.correct_co || '',
+                    };
+                    renderTRPerformanceAndFinish(dynamicStd);
+                },
+                error: function() { renderTRPerformanceAndFinish({}); }
+            });
+        } else if (modul === 'test_running') {
+            renderTRPerformanceAndFinish({});
+        } else {
+            finalizeDetailModal();
+        }
     }, 'json').fail(function() {
         document.getElementById('modalDetailBody').innerHTML = '<div class="alert alert-danger">Gagal memuat data.</div>';
     });
 }
+
 
 function cleanNum(val) {
     if (val === null || val === undefined || val === '') return val;
@@ -2514,6 +2582,31 @@ var TR_FIELD_STD_STATIC = {
     'blow_by':                      '<0.8',
     'belt_tension_left':            '15-20',
 };
+
+// Semua nama field data Test Running yang ikut dikunci/dibuka pas mode Rework.
+// Field yang nggak ada di TR_FIELD_STD_LABEL/STATIC otomatis TETAP TERKUNCI selamanya
+// (nggak ada cara otomatis nentuin NG-nya), field yang ada standard-nya dibuka HANYA
+// kalau kedeteksi keluar dari rentang.
+var ALL_TR_DATA_FIELDS = [
+    // Header measurement fields
+    'fuel_sp_gravity','dry_temp','wet_temp','atmosphere_press',
+    'limiter_actual','limiter_after_set','hi_idle_actual','eng_speed_max','eng_speed_min',
+    // Row 1
+    'r1_actual_nm','r1_corrected_kw','r1_torque_nm','r1_load_kgm','r1_fuel_cc_30sec',
+    'r1_fuel_mm3_st','r1_fuel_g_kwh','r1_sd_bsu','r1_temp_exhaust','r1_temp_oil','r1_lo_press',
+    'r1_intake_press','r1_exhaust_press','r1_nox','r1_co','r1_co2','r1_o2',
+    // Row 2
+    'r2_actual_nm','r2_corrected_kw','r2_temp_exhaust','r2_lo_press','r2_intake_press',
+    'r2_exhaust_press','r2_nox','r2_co','r2_co2','r2_o2','r2_correct_co',
+    // Row 3
+    'r3_torque_nm','r3_coolant_temp','r3_current_glow','r3_current_wire','r3_torque_switch_lo',
+    'r3_torque_pipe_air','r3_torque_bolt_cw','r3_torque_injection_injector','r3_torque_injection_fop',
+    'r3_torque_nut_joint',
+    // Correction & FIC
+    'correction_alpha','correction_beta','blow_by','min_eng_speed_lo','pulley_distance',
+    'fic_actual_left','fic_actual_right','fic_before_test_left','fic_before_test_right',
+    'fic_after_test_left','fic_after_test_right','belt_tension_left','belt_tension_right',
+];
 
 // Parse teks standard jadi {min, max}. Return null kalau formatnya nggak dikenali
 // (field itu dianggap tidak punya standard, jadi selalu OK berapapun diisi).
@@ -3538,6 +3631,14 @@ function loadTRForRework(id) {
         // nempel ke record yang SAMA berdasarkan id + engine_no.
         $form.find('input[name="engine_no"]').prop('readonly', true).css({ background: '#f7f7f7', color: '#666' });
 
+        // Engine Model & Bench Test juga DIKUNCI pas mode rework (bukan data ukur, tapi
+        // tetap nggak boleh diubah - ganti model di tengah rework bisa bikin standard-nya
+        // salah baca). Pakai lock visual doang (pointer-events:none), BUKAN attribute
+        // disabled, biar value-nya tetap ikut kekirim pas submit.
+        $form.find('select[name="engine_model"], select[name="bench_test"]')
+             .css({ 'pointer-events': 'none', background: '#f0f0f0', opacity: '0.75' })
+             .attr('tabindex', '-1');
+
         // PENTING: field engine_model di atas diisi TANPA trigger('change'), jadi opsi "Not Use"
         // (khusus model EJ/LE/120) nggak otomatis nambah ke dropdown Assembly/Function of Component.
         // Panggil manual di sini, SEBELUM checklist di bawah ini nyoba nge-set value dropdownnya.
@@ -3545,14 +3646,17 @@ function loadTRForRework(id) {
             updateAssemblyNotUseOptions(r.engine_model);
         }
 
-        // Kunci SEMUA field data angka secara default (readonly), buka HANYA yang otomatis
-        // kedeteksi NG (di luar rentang Standard) setelah standard buat model ini di-load.
-        // Nggak ada lagi checkbox manual - murni otomatis dari bandingin angka vs Standard.
-        var allTRFieldNames = Object.keys(TR_FIELD_STD_LABEL).concat(Object.keys(TR_FIELD_STD_STATIC));
+        // Kunci SEMUA field data (angka/teks) secara default (readonly) pas mode rework.
+        // Buka HANYA yang otomatis kedeteksi NG (di luar rentang Standard). Field yang
+        // nggak punya Standard sama sekali (misal Intake/Exhaust Pressure, NOx, CO, dst)
+        // TETAP TERKUNCI selamanya di mode rework - nggak ada cara otomatis nentuin NG
+        // buat field itu, jadi aman dikunci daripada nggak sengaja keubah.
         function applyTRReworkLocks() {
-            allTRFieldNames.forEach(function(name) {
+            ALL_TR_DATA_FIELDS.forEach(function(name) {
                 var $field = $form.find('[name="' + name + '"]');
                 if ($field.length === 0) return;
+                // Field yang nggak ada di TR_FIELD_STD_LABEL/STATIC otomatis nggak pernah NG
+                // (isTRFieldOutOfRange return false kalau standard-nya nggak kebaca) - jadi tetap terkunci.
                 var isNG = isTRFieldOutOfRange(name, $field.val());
                 if (isNG) {
                     $field.prop('readonly', false).css({ background: '#fff5f5', color: '', 'pointer-events': '', opacity: '', 'border-color': '#dc3545' });
@@ -3802,11 +3906,15 @@ function clearTRSearch() {
     $form.find('select[name="chk_val[]"]').css({ 'pointer-events': '', background: '', opacity: '' }).removeAttr('tabindex');
     $form.find('.chk-repair-note').prop('readonly', false).css('background', '').hide().val('');
 
-    // Buka kunci visual field data angka yang sempat dikunci pas mode rework, bersihin
+    // Buka kunci visual field data yang sempat dikunci pas mode rework, bersihin
     // juga tanda border merah NG (kalau ada dari deteksi otomatis)
-    $form.find('.tr-sec-row1, .tr-sec-row2, .tr-sec-row3').add('input[name="belt_tension_left"]')
-         .prop('readonly', false)
-         .css({ background: '', color: '', 'pointer-events': '', opacity: '', 'border-color': '' });
+    ALL_TR_DATA_FIELDS.forEach(function(name) {
+        $form.find('[name="' + name + '"]')
+             .prop('readonly', false)
+             .css({ background: '', color: '', 'pointer-events': '', opacity: '', 'border-color': '' });
+    });
+    $form.find('select[name="engine_model"], select[name="bench_test"]')
+         .css({ 'pointer-events': '', background: '', opacity: '' }).removeAttr('tabindex');
 
     // Sembunyikan & kosongkan preview foto (bukan form field, tidak ikut ter-reset otomatis)
     for (var fi = 1; fi <= 3; fi++) {

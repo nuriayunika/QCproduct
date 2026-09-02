@@ -98,8 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $belt_tension_left     = !empty($_POST['belt_tension_left'])     ? $_POST['belt_tension_left']     : 'NULL';
     $belt_tension_right    = !empty($_POST['belt_tension_right'])    ? $_POST['belt_tension_right']    : 'NULL';
     $noted                 = isset($_POST['noted']) ? mysqli_real_escape_string($koneksi, $_POST['noted']) : '';
-    $ng_sections_arr       = $_POST['ng_section'] ?? [];
-    $ng_sections           = mysqli_real_escape_string($koneksi, implode(',', array_map('trim', $ng_sections_arr)));
 
     // 6. UPLOAD FOTO ENGINE (3 foto) - kalau mode rework & operator nggak upload ulang,
     // path lama dipertahankan (diisi di bawah, setelah cek mode rework).
@@ -177,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             fic_before_test_left=$fic_before_test_left, fic_before_test_right=$fic_before_test_right,
             fic_after_test_left=$fic_after_test_left, fic_after_test_right=$fic_after_test_right,
             belt_tension_left=$belt_tension_left, belt_tension_right=$belt_tension_right,
-            noted='$noted', ng_sections='$ng_sections', operator_test='$operator_test',
+            noted='$noted', operator_test='$operator_test',
             foto_engine_1=$foto_engine_1, foto_engine_2=$foto_engine_2, foto_engine_3=$foto_engine_3
         WHERE id = $id_test_run";
 
@@ -237,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         r3_torque_nut_joint, correction_alpha, correction_beta, blow_by, min_eng_speed_lo,
         pulley_distance, fic_standard, fic_actual_left, fic_actual_right, fic_before_test_left,
         fic_before_test_right, fic_after_test_left, fic_after_test_right, belt_tension_left,
-        belt_tension_right, noted, ng_sections, operator_test, foto_engine_1, foto_engine_2, foto_engine_3
+        belt_tension_right, noted, operator_test, foto_engine_1, foto_engine_2, foto_engine_3
     ) VALUES (
         '$test_name', '$engine_model', '$engine_no', '$test_date', '$bench_test', '$operator_name',
         '$lube_oil', '$fuel_type', $fuel_sp_gravity, $dry_temp, $wet_temp, $atmosphere_press,
@@ -252,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $r3_torque_nut_joint, $correction_alpha, $correction_beta, $blow_by, $min_eng_speed_lo,
         $pulley_distance, '$fic_standard', $fic_actual_left, $fic_actual_right, $fic_before_test_left,
         $fic_before_test_right, $fic_after_test_left, $fic_after_test_right, $belt_tension_left,
-        $belt_tension_right, '$noted', '$ng_sections', '$operator_test', $foto_engine_1, $foto_engine_2, $foto_engine_3
+        $belt_tension_right, '$noted', '$operator_test', $foto_engine_1, $foto_engine_2, $foto_engine_3
     )";
 
     if (mysqli_query($koneksi, $query_utama)) {
