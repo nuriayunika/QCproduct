@@ -234,6 +234,11 @@ $is_approver = (
             display: block; font-size: 9px; font-weight: 700;
             color: #ffc107; margin-top: 2px;
         }
+        .std-label-badge {
+            display: block; font-size: 10px; font-weight: 700;
+            color: #7B1D1D; background: #fdf3d0; margin-top: 3px;
+            padding: 1px 4px; border-radius: 3px;
+        }
 
         /* Bottom cards */
         .bottom-card {
@@ -1118,12 +1123,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>
-                                        1
-                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
-                                            <input type="checkbox" name="ng_section[]" value="row1" class="ng-section-chk"> NG
-                                        </label>
-                                    </td>
+                                    <td>1</td>
                                     <td class="text-start fw-bold" id="lbl_speed1">-</td>
                                     <td><input type="number" name="r1_actual_nm" step="any" class="form-control form-control-sm tr-sec-row1"></td>
                                     <td><input type="number" name="r1_corrected_kw" step="any" class="form-control form-control-sm tr-sec-row1"></td>
@@ -1145,12 +1145,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                     <td class="bg-secondary"></td>
                                 </tr>
                                 <tr>
-                                    <td>
-                                        2
-                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
-                                            <input type="checkbox" name="ng_section[]" value="row2" class="ng-section-chk"> NG
-                                        </label>
-                                    </td>
+                                    <td>2</td>
                                     <td class="text-start fw-bold" id="lbl_speed2">-</td>
                                     <td><input type="number" name="r2_actual_nm" step="any" class="form-control form-control-sm tr-sec-row2"></td>
                                     <td><input type="number" name="r2_corrected_kw" step="any" class="form-control form-control-sm tr-sec-row2"></td>
@@ -1176,13 +1171,13 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <tr style="background-color: #f5e6e6; color: var(--maroon); font-weight: bold; text-align: center; vertical-align: middle;">
                                     <th rowspan="2" style="border: 1px solid #000000;">Eng. Speed</th>
                                     <th rowspan="2" style="border: 1px solid #000000;">Torque (Nm)</th>
-                                    <th rowspan="2" style="border: 1px solid #000000;">Coolant (°C)</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Coolant (°C)<span class="std-label-badge">≤110</span></th>
                                     <th colspan="2" style="border: 1px solid #000000;">Current (A)</th> 
-                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Box LO</th>
-                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Air Intake</th>
-                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Bolt CW</th>
-                                    <th colspan="2" style="border: 1px solid #000000;">Torque Injection pipe</th> 
-                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Nut Joint</th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Box LO<span class="std-label-badge">10-12</span></th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Air Intake<span class="std-label-badge">24-28</span></th>
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Bolt CW<span class="std-label-badge">25-29</span></th>
+                                    <th colspan="2" style="border: 1px solid #000000;">Torque Injection pipe<span class="std-label-badge">27-37 Nm</span></th> 
+                                    <th rowspan="2" style="border: 1px solid #000000;">Torque Nut Joint<span class="std-label-badge">27-37</span></th>
                                 </tr>
                                 <tr style="background-color: #f5e6e6; color: var(--maroon); text-align: center; vertical-align: middle; font-size: 11px;">
                                     <th style="border: 1px solid #000000; font-weight: normal;">at glow plug a</th>
@@ -1193,22 +1188,17 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="fw-bold" id="lbl_speed3">
-                                        -
-                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
-                                            <input type="checkbox" name="ng_section[]" value="row3" class="ng-section-chk"> NG
-                                        </label>
-                                    </td>
+                                    <td class="fw-bold" id="lbl_speed3">-</td>
                                     <td><input type="number" name="r3_torque_nm" step="any" class="form-control form-control-sm tr-sec-row3"></td>
                                     <td><input type="number" name="r3_coolant_temp" class="form-control form-control-sm tr-sec-row3"></td>
                                     <td><input type="number" name="r3_current_glow" step="any" class="form-control form-control-sm tr-sec-row3"></td>
                                     <td><input type="number" name="r3_current_wire" step="any" class="form-control form-control-sm tr-sec-row3"></td>
-                                    <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm tr-sec-row3" placeholder="Std 10-12"></td>
-                                    <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm tr-sec-row3" placeholder="Std 24-28"></td>
-                                    <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm tr-sec-row3" placeholder="Std 25-29"></td>
-                                    <td><input type="number" name="r3_torque_injection_injector" class="form-control form-control-sm tr-sec-row3" placeholder="at injector"></td>
-                                    <td><input type="number" name="r3_torque_injection_fop" class="form-control form-control-sm tr-sec-row3" placeholder="at FOP"></td>
-                                    <td><input type="number" name="r3_torque_nut_joint" class="form-control form-control-sm tr-sec-row3" placeholder="Std 27-37"></td>
+                                    <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_injection_injector" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_injection_fop" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_nut_joint" class="form-control form-control-sm tr-sec-row3"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1219,12 +1209,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             <div class="row g-2">
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="bottom-card-header d-flex justify-content-between align-items-center">
-                            <span>Correction Factor & Blow By</span>
-                            <label style="font-size:9px;font-weight:normal;cursor:pointer;color:#fff;">
-                                <input type="checkbox" name="ng_section[]" value="correction" class="ng-section-chk"> NG
-                            </label>
-                        </div>
+                        <div class="bottom-card-header">Correction Factor & Blow By</div>
                         <div style="display:none">
                         </div>
                         <div class="card-body p-0">
@@ -1273,12 +1258,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="bottom-card-header d-flex justify-content-between align-items-center">
-                            <span>Fuel Injection Timing (FIC)</span>
-                            <label style="font-size:9px;font-weight:normal;cursor:pointer;color:#fff;">
-                                <input type="checkbox" name="ng_section[]" value="fic" class="ng-section-chk"> NG
-                            </label>
-                        </div>
+                        <div class="bottom-card-header">Fuel Injection Timing (FIC)</div>
                         <div style="display:none">
                         </div>
                         <div class="card-body p-0">
@@ -2492,6 +2472,104 @@ function showToast(type, msg) {
 // - Function of Component "Headlamp"                              -> cuma model 120
 // Fungsi ini GLOBAL (bukan di dalam $(document).ready) biar bisa dipanggil juga dari
 // loadTRForRework() waktu mode rework meng-load ulang engine_model tanpa trigger('change').
+// =========================================================
+// DETEKSI NG OTOMATIS buat Test Running: baca teks "Standard" yang sudah
+// tertampil di form (misal "5.35 - 5.80", "≤26.5", "Std 10-12"), parse jadi
+// rentang angka, lalu bandingin ke nilai yang diinput operator. Kalau di
+// luar rentang, field itu otomatis ditandai NG (border merah) - operator
+// TIDAK PERLU checklist manual sama sekali. Field yang standard-nya nggak
+// bisa dibaca/nggak ada (misal FIC, Correction Factor) dianggap selalu OK,
+// bebas diisi berapapun.
+// =========================================================
+
+// Pemetaan nama field -> id elemen span yang isinya teks standard (dinamis per model)
+var TR_FIELD_STD_LABEL = {
+    'r1_corrected_kw':  'std_output_lbl',
+    'r1_torque_nm':     'std_torque_lbl',
+    'r1_load_kgm':      'std_load_lbl',
+    'r1_fuel_mm3_st':   'std_fuel_mm3_lbl',
+    'r1_fuel_g_kwh':    'std_fuel_gkwh_lbl',
+    'r1_sd_bsu':        'std_sd_lbl',
+    'r1_temp_exhaust':  'lbl_ex_r1',
+    'r2_temp_exhaust':  'lbl_ex_r1',
+    'r1_temp_oil':      'lbl_oil_r1',
+    'r1_lo_press':      'lbl_lo_r1',
+    'r2_lo_press':      'lbl_lo_r1',
+    'r2_correct_co':    'std_correct_co_lbl',
+};
+// Field yang standard-nya statis (bukan dari label dinamis per model), dibaca dari
+// atribut placeholder atau teks label yang sudah ada di HTML sejak awal.
+// Nilai-nilai ini dicek ulang manual terhadap checksheet asli (TF70V/90V/120V) -
+// semuanya universal (sama persis di ketiga model), makanya aman di-hardcode di sini.
+var TR_FIELD_STD_STATIC = {
+    'r3_coolant_temp':              '≤110',
+    'r3_torque_switch_lo':          'Std 10-12',
+    'r3_torque_pipe_air':           'Std 24-28',
+    'r3_torque_bolt_cw':            'Std 25-29',
+    'r3_torque_injection_injector': '27-37',
+    'r3_torque_injection_fop':      '27-37',
+    'r3_torque_nut_joint':          'Std 27-37',
+    'min_eng_speed_lo':             '≤500',
+    'pulley_distance':              '92-93',
+    'blow_by':                      '<0.8',
+    'belt_tension_left':            '15-20',
+};
+
+// Parse teks standard jadi {min, max}. Return null kalau formatnya nggak dikenali
+// (field itu dianggap tidak punya standard, jadi selalu OK berapapun diisi).
+function parseStandardRange(text) {
+    if (!text) return null;
+    text = String(text).trim();
+    var m = text.match(/(-?\d+\.?\d*)\s*-\s*(-?\d+\.?\d*)/);
+    if (m) return { min: parseFloat(m[1]), max: parseFloat(m[2]) };
+    m = text.match(/(?:≤|<=|<)\s*(-?\d+\.?\d*)/);
+    if (m) return { min: -Infinity, max: parseFloat(m[1]) };
+    m = text.match(/(?:≥|>=|>)\s*(-?\d+\.?\d*)/);
+    if (m) return { min: parseFloat(m[1]), max: Infinity };
+    m = text.match(/(-?\d+\.?\d*)\s*±\s*(-?\d+\.?\d*)/);
+    if (m) { var c = parseFloat(m[1]), t = parseFloat(m[2]); return { min: c - t, max: c + t }; }
+    return null;
+}
+
+// Ambil teks standard buat 1 field tertentu (dari label dinamis ATAU dari daftar statis)
+function getTRFieldStandardText(fieldName) {
+    if (TR_FIELD_STD_LABEL[fieldName]) {
+        var el = document.getElementById(TR_FIELD_STD_LABEL[fieldName]);
+        return el ? el.textContent : '';
+    }
+    if (TR_FIELD_STD_STATIC[fieldName]) return TR_FIELD_STD_STATIC[fieldName];
+    return '';
+}
+
+// Cek 1 field: keluar dari rentang standard atau nggak. Field kosong / standard
+// nggak kebaca -> selalu dianggap OK (nggak ditandai NG).
+function isTRFieldOutOfRange(fieldName, value) {
+    if (value === '' || value === null || value === undefined) return false;
+    var range = parseStandardRange(getTRFieldStandardText(fieldName));
+    if (!range) return false;
+    var num = parseFloat(value);
+    if (isNaN(num)) return false;
+    return (num < range.min || num > range.max);
+}
+
+// Jalanin validasi ke SEMUA field yang punya standard, kasih border merah kalau NG.
+// Dipanggil real-time waktu operator ngetik, dan waktu label standard baru di-update.
+function validateAllTRFields($form) {
+    var allFieldNames = Object.keys(TR_FIELD_STD_LABEL).concat(Object.keys(TR_FIELD_STD_STATIC));
+    allFieldNames.forEach(function(name) {
+        var $field = $form.find('[name="' + name + '"]');
+        if ($field.length === 0) return;
+        var isNG = isTRFieldOutOfRange(name, $field.val());
+        $field.toggleClass('tr-field-ng', isNG);
+        if (isNG) {
+            $field.css({ 'border-color': '#dc3545', 'background': '#fff5f5' });
+        } else {
+            $field.css({ 'border-color': '', 'background': '' });
+        }
+    });
+}
+
+
 function updateAssemblyNotUseOptions(model) {
     model = (model || '').toUpperCase();
     var isEJorLE = model.indexOf('EJ') !== -1 || model.indexOf('LE') !== -1;
@@ -2554,12 +2632,26 @@ $(document).ready(function(){
                     $('#lbl_speed1').text(r.speed1||'-');
                     $('#lbl_speed2').text(r.speed2||'-');
                     $('#lbl_speed3').text(r.speed3||'-');
+                    // Standard baru kepasang - cek ulang field yang udah keisi (kalau ada), siapa tau
+                    // jadi NG/OK gara-gara standard-nya beda dari model sebelumnya.
+                    validateAllTRFields($('#form-tr'));
                 },
                 error:function(){ console.log('Gagal memuat spesifikasi.'); }
             });
         } else {
             $('#cont_power,#max_power,#lbl_hi_idle,#fic_standard').val('');
             $('#std_output_lbl,#std_torque_lbl,#std_load_lbl,#std_fuel_mm3_lbl,#std_fuel_gkwh_lbl,#std_sd_lbl,#lbl_ex_r1,#lbl_oil_r1,#lbl_lo_r1,#std_correct_co_lbl,#lbl_speed1,#lbl_speed2,#lbl_speed3').text('-');
+        }
+    });
+
+    // Validasi real-time: setiap kali operator ngetik di salah satu field yang punya
+    // standard (lihat TR_FIELD_STD_LABEL & TR_FIELD_STD_STATIC), langsung dicek NG atau nggak.
+    $(document).on('input', '#form-tr input[type="number"], #form-tr input[type="text"]', function(){
+        var name = $(this).attr('name');
+        if (!name) return;
+        if (TR_FIELD_STD_LABEL[name] || TR_FIELD_STD_STATIC[name]) {
+            var isNG = isTRFieldOutOfRange(name, $(this).val());
+            $(this).css(isNG ? { 'border-color': '#dc3545', 'background': '#fff5f5' } : { 'border-color': '', 'background': '' });
         }
     });
 
@@ -3453,24 +3545,22 @@ function loadTRForRework(id) {
             updateAssemblyNotUseOptions(r.engine_model);
         }
 
-        // Kunci SEMUA field data angka (Row1/Row2/Row3/Correction/FIC) secara default, buka
-        // cuma section yang ditandai "NG" waktu submit awal (ng_sections). Ini fokus operator
-        // langsung ke bagian yang bermasalah, sisanya aman dari kesalahan tidak sengaja.
-        var ngSections = (r.ng_sections || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-        var allSections = ['row1','row2','row3','correction','fic'];
-        allSections.forEach(function(sec) {
-            var $fields = $form.find('.tr-sec-' + sec);
-            var isFlagged = ngSections.indexOf(sec) !== -1;
-            if (isFlagged) {
-                $fields.prop('readonly', false).css({ background: '', 'pointer-events': '', opacity: '' });
-            } else {
-                $fields.prop('readonly', true).css({ background: '#f0f0f0', color: '#666', 'pointer-events': 'none', opacity: '0.75' });
-            }
-        });
-        // Centang ulang checkbox "NG" sesuai yang tersimpan, biar kelihatan section mana yang ditandai
-        $form.find('.ng-section-chk').each(function() {
-            $(this).prop('checked', ngSections.indexOf($(this).val()) !== -1);
-        });
+        // Kunci SEMUA field data angka secara default (readonly), buka HANYA yang otomatis
+        // kedeteksi NG (di luar rentang Standard) setelah standard buat model ini di-load.
+        // Nggak ada lagi checkbox manual - murni otomatis dari bandingin angka vs Standard.
+        var allTRFieldNames = Object.keys(TR_FIELD_STD_LABEL).concat(Object.keys(TR_FIELD_STD_STATIC));
+        function applyTRReworkLocks() {
+            allTRFieldNames.forEach(function(name) {
+                var $field = $form.find('[name="' + name + '"]');
+                if ($field.length === 0) return;
+                var isNG = isTRFieldOutOfRange(name, $field.val());
+                if (isNG) {
+                    $field.prop('readonly', false).css({ background: '#fff5f5', color: '', 'pointer-events': '', opacity: '', 'border-color': '#dc3545' });
+                } else {
+                    $field.prop('readonly', true).css({ background: '#f0f0f0', color: '#666', 'pointer-events': 'none', opacity: '0.75', 'border-color': '' });
+                }
+            });
+        }
 
         // Isi dropdown checklist dengan jawaban TERSIMPAN. Item yang UDAH OK/lolos dikunci
         // (dipertahankan apa adanya, nggak boleh diutak-atik), cuma item yang BERMASALAH
@@ -3516,7 +3606,8 @@ function loadTRForRework(id) {
             }
         }
 
-        // Muat label standar sesuai model
+        // Muat label standar sesuai model, BARU setelah itu jalanin deteksi NG otomatis
+        // (soalnya deteksinya butuh baca teks Standard yang baru di-load ini).
         if (r.engine_model) {
             $.ajax({
                 url: 'ambil_master_spec.php', type: 'POST', data: { engine_model: r.engine_model }, dataType: 'json',
@@ -3534,8 +3625,11 @@ function loadTRForRework(id) {
                     $('#lbl_speed1').text(spec.speed1 || '-');
                     $('#lbl_speed2').text(spec.speed2 || '-');
                     $('#lbl_speed3').text(spec.speed3 || '-');
+                    applyTRReworkLocks();
                 }
             });
+        } else {
+            applyTRReworkLocks();
         }
 
         $('#tr_edit_id').val(id);
@@ -3708,11 +3802,11 @@ function clearTRSearch() {
     $form.find('select[name="chk_val[]"]').css({ 'pointer-events': '', background: '', opacity: '' }).removeAttr('tabindex');
     $form.find('.chk-repair-note').prop('readonly', false).css('background', '').hide().val('');
 
-    // Buka kunci visual section data angka (Row1/Row2/Row3/Correction/FIC) & uncheck semua NG
-    ['row1','row2','row3','correction','fic'].forEach(function(sec) {
-        $form.find('.tr-sec-' + sec).css({ background: '', color: '', 'pointer-events': '', opacity: '' });
-    });
-    $form.find('.ng-section-chk').prop('checked', false);
+    // Buka kunci visual field data angka yang sempat dikunci pas mode rework, bersihin
+    // juga tanda border merah NG (kalau ada dari deteksi otomatis)
+    $form.find('.tr-sec-row1, .tr-sec-row2, .tr-sec-row3').add('input[name="belt_tension_left"]')
+         .prop('readonly', false)
+         .css({ background: '', color: '', 'pointer-events': '', opacity: '', 'border-color': '' });
 
     // Sembunyikan & kosongkan preview foto (bukan form field, tidak ikut ter-reset otomatis)
     for (var fi = 1; fi <= 3; fi++) {
