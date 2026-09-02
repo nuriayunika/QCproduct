@@ -449,6 +449,20 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             $allApprovals[$apvRow['test_run_id']][$apvRow['role']] = $apvRow;
         }
     }
+
+    // Deteksi record mana yang PERNAH di-rework (ada minimal 1 item checklist yang hasilnya
+    // "Rework"), biar approver bisa langsung lihat tanpa perlu buka Detail dulu.
+    $reworkedIds = [];
+    $chkMap = [
+        'result_test_run'       => ['table' => 'checklist',                   'link' => 'id_test_run', 'col' => 'jawaban'],
+        'final_inspection_data' => ['table' => 'final_inspection_checklist',  'link' => 'fi_id',       'col' => 'result'],
+        'packing_data'          => ['table' => 'packing_checklist',          'link' => 'pack_id',      'col' => 'result'],
+    ];
+    if (isset($chkMap[$dataTable])) {
+        $ck = $chkMap[$dataTable];
+        $rq = mysqli_query($koneksi, "SELECT DISTINCT `{$ck['link']}` AS rid FROM `{$ck['table']}` WHERE `{$ck['col']}` = 'Rework'");
+        if ($rq) while ($rr = mysqli_fetch_assoc($rq)) $reworkedIds[(int)$rr['rid']] = true;
+    }
 ?>
     <div class="d-flex justify-content-between align-items-center mb-2">
         <?php if ($anyFilterActive): ?>
@@ -646,6 +660,13 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                     <span class="badge <?php echo $badgeClass; ?> px-2 py-1" style="font-size:11px;">
                         <i class="fa-solid <?php echo $badgeIcon; ?> me-1"></i><?php echo $finalStatus; ?>
                     </span>
+                    <?php if (isset($reworkedIds[$recordId])): ?>
+                    <div class="mt-1">
+                        <span class="badge px-2 py-1" style="font-size:9px; background:#997404; color:#fff;">
+                            <i class="fa-solid fa-rotate me-1"></i>Rework
+                        </span>
+                    </div>
+                    <?php endif; ?>
                 </td>
 
                 <!-- Tombol aksi -->
@@ -823,7 +844,17 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: TEST RUNNING ---- -->
 <div id="sec-test-running" class="module-section active-module">
     <div class="container-fluid pb-3">
+
+        <!-- PANEL: DATA PERLU REWORK -->
+        <div class="card mb-3 shadow-sm" id="tr_rework_panel" style="display:none;">
+            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+                <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Test Running)</h6>
+            </div>
+            <div class="card-body p-2" id="tr_rework_list"></div>
+        </div>
+
         <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)" id="form-tr" autocomplete="off">
+            <input type="hidden" name="edit_id" id="tr_edit_id" value="">
 
             <div class="card mb-3 tr-header-card">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
@@ -982,16 +1013,18 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <?php 
                                 $q_leak = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Leakage Check'");
                                 while($l = mysqli_fetch_array($q_leak)) { ?>
-                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
-                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $l['item_checking']; ?></span>
-                                        <input type="hidden" name="chk_item[]" value="<?php echo $l['item_checking']; ?>">
-                                        <input type="hidden" name="chk_type[]" value="Leakage Check">
-                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary" style="min-width: 90px; max-width: 100px;">
-                                            <option value="" selected>Pilih</option>
-                                            <option value="Yes">Yes</option>
-                                            <option value="No">No</option>
-                                            <option value="Rework">Rework</option>
-                                        </select>
+                                    <div class="mb-2 border-bottom pb-2 chk-item-wrap">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $l['item_checking']; ?></span>
+                                            <input type="hidden" name="chk_item[]" value="<?php echo $l['item_checking']; ?>">
+                                            <input type="hidden" name="chk_type[]" value="Leakage Check">
+                                            <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary chk-val-sel" style="min-width: 90px; max-width: 100px;">
+                                                <option value="" selected>Pilih</option>
+                                                <option value="Yes">Yes</option>
+                                                <option value="No">No</option>
+                                            </select>
+                                        </div>
+                                        <textarea name="chk_repair_note[]" class="form-control form-control-sm mt-1 chk-repair-note" style="font-size:11px; display:none;" rows="2" placeholder="Catatan masalah / apa yang diperbaiki..."></textarea>
                                     </div>
                                 <?php } ?>
                             </div>
@@ -1003,16 +1036,18 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <?php 
                                 $q_ass = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Assembly Check'");
                                 while($a = mysqli_fetch_array($q_ass)) { ?>
-                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
-                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $a['item_checking']; ?></span>
-                                        <input type="hidden" name="chk_item[]" value="<?php echo $a['item_checking']; ?>">
-                                        <input type="hidden" name="chk_type[]" value="Assembly Check">
-                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary assembly-check-sel" style="min-width: 90px; max-width: 100px;">
-                                            <option value="" selected>Pilih</option>
-                                            <option value="OK">OK</option>
-                                            <option value="NG">NG</option>
-                                            <option value="Rework">Rework</option>
-                                        </select>
+                                    <div class="mb-2 border-bottom pb-2 chk-item-wrap">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $a['item_checking']; ?></span>
+                                            <input type="hidden" name="chk_item[]" value="<?php echo $a['item_checking']; ?>">
+                                            <input type="hidden" name="chk_type[]" value="Assembly Check">
+                                            <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary assembly-check-sel chk-val-sel" style="min-width: 90px; max-width: 100px;">
+                                                <option value="" selected>Pilih</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NG">NG</option>
+                                            </select>
+                                        </div>
+                                        <textarea name="chk_repair_note[]" class="form-control form-control-sm mt-1 chk-repair-note" style="font-size:11px; display:none;" rows="2" placeholder="Catatan masalah / apa yang diperbaiki..."></textarea>
                                     </div>
                                 <?php } ?>
                             </div>
@@ -1024,16 +1059,18 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                 <?php 
                                 $q_fun = mysqli_query($koneksi, "SELECT * FROM master_visual_checklist WHERE visual_inspection='Function of Component'");
                                 while($f = mysqli_fetch_array($q_fun)) { ?>
-                                    <div class="mb-2 d-flex justify-content-between align-items-center border-bottom pb-2">
-                                        <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $f['item_checking']; ?></span>
-                                        <input type="hidden" name="chk_item[]" value="<?php echo $f['item_checking']; ?>">
-                                        <input type="hidden" name="chk_type[]" value="Function of Component">
-                                        <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary function-comp-sel" style="min-width: 90px; max-width: 100px;">
-                                            <option value="" selected>Pilih</option>
-                                            <option value="OK">OK</option>
-                                            <option value="NG">NG</option>
-                                            <option value="Rework">Rework</option>
-                                        </select>
+                                    <div class="mb-2 border-bottom pb-2 chk-item-wrap">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span style="font-size:12px; max-width:70%;" class="fw-semibold"><?php echo $f['item_checking']; ?></span>
+                                            <input type="hidden" name="chk_item[]" value="<?php echo $f['item_checking']; ?>">
+                                            <input type="hidden" name="chk_type[]" value="Function of Component">
+                                            <select name="chk_val[]" class="form-select form-select-sm text-center fw-bold border-secondary function-comp-sel chk-val-sel" style="min-width: 90px; max-width: 100px;">
+                                                <option value="" selected>Pilih</option>
+                                                <option value="OK">OK</option>
+                                                <option value="NG">NG</option>
+                                            </select>
+                                        </div>
+                                        <textarea name="chk_repair_note[]" class="form-control form-control-sm mt-1 chk-repair-note" style="font-size:11px; display:none;" rows="2" placeholder="Catatan masalah / apa yang diperbaiki..."></textarea>
                                     </div>
                                 <?php } ?>
                             </div>
@@ -1081,43 +1118,53 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>1</td>
+                                    <td>
+                                        1
+                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
+                                            <input type="checkbox" name="ng_section[]" value="row1" class="ng-section-chk"> NG
+                                        </label>
+                                    </td>
                                     <td class="text-start fw-bold" id="lbl_speed1">-</td>
-                                    <td><input type="number" name="r1_actual_nm" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_corrected_kw" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_torque_nm" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_load_kgm" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_cc_30sec" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_mm3_st" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_fuel_g_kwh" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_sd_bsu" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_temp_exhaust" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_temp_oil" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_lo_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_intake_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_exhaust_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_nox" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_co" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_co2" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r1_o2" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r1_actual_nm" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_corrected_kw" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_torque_nm" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_load_kgm" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_fuel_cc_30sec" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_fuel_mm3_st" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_fuel_g_kwh" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_sd_bsu" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_temp_exhaust" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_temp_oil" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_lo_press" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_intake_press" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_exhaust_press" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_nox" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_co" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_co2" step="any" class="form-control form-control-sm tr-sec-row1"></td>
+                                    <td><input type="number" name="r1_o2" step="any" class="form-control form-control-sm tr-sec-row1"></td>
                                     <td class="bg-secondary"></td>
                                 </tr>
                                 <tr>
-                                    <td>2</td>
+                                    <td>
+                                        2
+                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
+                                            <input type="checkbox" name="ng_section[]" value="row2" class="ng-section-chk"> NG
+                                        </label>
+                                    </td>
                                     <td class="text-start fw-bold" id="lbl_speed2">-</td>
-                                    <td><input type="number" name="r2_actual_nm" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_corrected_kw" step="any" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_actual_nm" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_corrected_kw" step="any" class="form-control form-control-sm tr-sec-row2"></td>
                                     <td class="bg-secondary" colspan="6"></td>
-                                    <td><input type="number" name="r2_temp_exhaust" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_temp_exhaust" class="form-control form-control-sm tr-sec-row2"></td>
                                     <td class="bg-secondary"></td>
-                                    <td><input type="number" name="r2_lo_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_intake_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_exhaust_press" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_nox" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_co" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_co2" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_o2" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r2_correct_co" class="form-control form-control-sm"></td>
+                                    <td><input type="number" name="r2_lo_press" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_intake_press" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_exhaust_press" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_nox" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_co" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_co2" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_o2" step="any" class="form-control form-control-sm tr-sec-row2"></td>
+                                    <td><input type="number" name="r2_correct_co" class="form-control form-control-sm tr-sec-row2"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1146,17 +1193,22 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="fw-bold" id="lbl_speed3">-</td>
-                                    <td><input type="number" name="r3_torque_nm" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_coolant_temp" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_current_glow" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_current_wire" step="any" class="form-control form-control-sm"></td>
-                                    <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm" placeholder="Std 10-12"></td>
-                                    <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm" placeholder="Std 24-28"></td>
-                                    <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm" placeholder="Std 25-29"></td>
-                                    <td><input type="number" name="r3_torque_injection_injector" class="form-control form-control-sm" placeholder="at injector"></td>
-                                    <td><input type="number" name="r3_torque_injection_fop" class="form-control form-control-sm" placeholder="at FOP"></td>
-                                    <td><input type="number" name="r3_torque_nut_joint" class="form-control form-control-sm" placeholder="Std 27-37"></td>
+                                    <td class="fw-bold" id="lbl_speed3">
+                                        -
+                                        <label class="d-block mt-1" style="font-size:9px;font-weight:normal;cursor:pointer;">
+                                            <input type="checkbox" name="ng_section[]" value="row3" class="ng-section-chk"> NG
+                                        </label>
+                                    </td>
+                                    <td><input type="number" name="r3_torque_nm" step="any" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_coolant_temp" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_current_glow" step="any" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_current_wire" step="any" class="form-control form-control-sm tr-sec-row3"></td>
+                                    <td><input type="number" name="r3_torque_switch_lo" class="form-control form-control-sm tr-sec-row3" placeholder="Std 10-12"></td>
+                                    <td><input type="number" name="r3_torque_pipe_air" class="form-control form-control-sm tr-sec-row3" placeholder="Std 24-28"></td>
+                                    <td><input type="number" name="r3_torque_bolt_cw" class="form-control form-control-sm tr-sec-row3" placeholder="Std 25-29"></td>
+                                    <td><input type="number" name="r3_torque_injection_injector" class="form-control form-control-sm tr-sec-row3" placeholder="at injector"></td>
+                                    <td><input type="number" name="r3_torque_injection_fop" class="form-control form-control-sm tr-sec-row3" placeholder="at FOP"></td>
+                                    <td><input type="number" name="r3_torque_nut_joint" class="form-control form-control-sm tr-sec-row3" placeholder="Std 27-37"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1167,7 +1219,12 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
             <div class="row g-2">
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="bottom-card-header">Correction Factor & Blow By</div>
+                        <div class="bottom-card-header d-flex justify-content-between align-items-center">
+                            <span>Correction Factor & Blow By</span>
+                            <label style="font-size:9px;font-weight:normal;cursor:pointer;color:#fff;">
+                                <input type="checkbox" name="ng_section[]" value="correction" class="ng-section-chk"> NG
+                            </label>
+                        </div>
                         <div style="display:none">
                         </div>
                         <div class="card-body p-0">
@@ -1182,9 +1239,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold py-1" style="width: 25%;">β</td>
                                     </tr>
                                     <tr>
-                                        <td class="p-2"><input type="text" name="correction_alpha" class="form-control text-center" style="border-radius: 4px;"></td>
-                                        <td class="p-2"><input type="text" name="correction_beta" class="form-control text-center" style="border-radius: 4px;"></td>
-                                        <td class="p-2"><input type="text" name="blow_by" class="form-control text-center" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="text" name="correction_alpha" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="text" name="correction_beta" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="text" name="blow_by" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
                                     </tr>
                                     <tr style="background-color: #f5e6e6; color: var(--maroon);">
                                         <td colspan="2" class="fw-bold py-2" style="line-height: 1.3; font-size: 11px; height: 40px; vertical-align: middle;">
@@ -1197,13 +1254,13 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                     <tr>
                                         <td colspan="2" class="p-2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="min_eng_speed_lo" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="min_eng_speed_lo" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">Rpm</span>
                                             </div>
                                         </td>
                                         <td class="p-2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="pulley_distance" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="pulley_distance" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">mm</span>
                                             </div>
                                         </td>
@@ -1216,7 +1273,12 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
                 <div class="col-md-4">
                     <div class="card shadow-sm h-100">
-                        <div class="bottom-card-header">Fuel Injection Timing (FIC)</div>
+                        <div class="bottom-card-header d-flex justify-content-between align-items-center">
+                            <span>Fuel Injection Timing (FIC)</span>
+                            <label style="font-size:9px;font-weight:normal;cursor:pointer;color:#fff;">
+                                <input type="checkbox" name="ng_section[]" value="fic" class="ng-section-chk"> NG
+                            </label>
+                        </div>
                         <div style="display:none">
                         </div>
                         <div class="card-body p-0">
@@ -1232,9 +1294,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC actual</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_actual_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="fic_actual_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_actual_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                                <input type="text" name="fic_actual_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1242,9 +1304,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC before test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_before_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="fic_before_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_before_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                                <input type="text" name="fic_before_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1252,9 +1314,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC after test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_after_test_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="fic_after_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_after_test_right" class="form-control text-center" style="border-radius: 0 4px 4px 0;">
+                                                <input type="text" name="fic_after_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1262,7 +1324,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">Belt tension 15-20 mm</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="belt_tension_left" class="form-control text-center" style="border-radius: 4px 0 0 4px;">
+                                                <input type="text" name="belt_tension_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; color: var(--gray-md); border-radius: 0 4px 4px 0;">mm</span>
                                             </div>
                                         </td>
@@ -1340,7 +1402,16 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <div id="sec-final-inspection" class="module-section">
     <div class="container-fluid pb-3">
 
+        <!-- PANEL: DATA PERLU REWORK -->
+        <div class="card mb-3 shadow-sm" id="fi_rework_panel" style="display:none;">
+            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+                <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Final Inspection)</h6>
+            </div>
+            <div class="card-body p-2" id="fi_rework_list"></div>
+        </div>
+
         <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi" autocomplete="off" onsubmit="return validateFIForm(this)">
+            <input type="hidden" name="edit_id" id="fi_edit_id" value="">
 
             <!-- HEADER CARD -->
             <div class="card mb-3 shadow-sm">
@@ -1548,7 +1619,17 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 <!-- ---- TAB: PACKING (placeholder) ---- -->
 <div id="sec-packing" class="module-section">
     <div class="container-fluid pb-3">
+
+        <!-- PANEL: DATA PERLU REWORK -->
+        <div class="card mb-3 shadow-sm" id="pk_rework_panel" style="display:none;">
+            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+                <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Packing)</h6>
+            </div>
+            <div class="card-body p-2" id="pk_rework_list"></div>
+        </div>
+
         <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk" autocomplete="off" onsubmit="return validatePKForm(this)">
+            <input type="hidden" name="edit_id" id="pk_edit_id" value="">
             <div class="card mb-3 shadow-sm">
                 <div class="card-header py-0 border-0" style="background:linear-gradient(135deg,#5a1414 0%,#7B1D1D 60%,#a83232 100%); border-radius:12px 12px 0 0;">
                     <div class="d-flex align-items-center gap-2 py-2 px-2">
@@ -1944,6 +2025,21 @@ $(document).ready(function(){
         showToast('success', 'Data Packing berhasil disimpan!');
         history.replaceState(null, '', window.location.pathname);
     }
+    if (urlParams.get('tr_rework_success') === '1') {
+        showToast('success', 'Rework Test Running berhasil disimpan! Menunggu approval ulang.');
+        history.replaceState(null, '', window.location.pathname + '#test-running');
+        switchModule('test-running');
+    }
+    if (urlParams.get('fi_rework_success') === '1') {
+        showToast('success', 'Rework Final Inspection berhasil disimpan! Menunggu approval ulang.');
+        history.replaceState(null, '', window.location.pathname + '#final-inspection');
+        switchModule('final-inspection');
+    }
+    if (urlParams.get('pk_rework_success') === '1') {
+        showToast('success', 'Rework Packing berhasil disimpan! Menunggu approval ulang.');
+        history.replaceState(null, '', window.location.pathname + '#packing');
+        switchModule('packing');
+    }
 });
 
 // --- Switch ke mode approval (khusus Foreman yang juga operator packing) ---
@@ -2251,7 +2347,11 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
                     displayNo = grp + '.' + subCounterDetail;
                 }
                 html += '<tr><td class="text-center">' + displayNo + '</td>';
-                html += '<td>' + (c.item_name || c.item || '-') + '</td>';
+                html += '<td>' + (c.item_name || c.item || '-');
+                if (result === 'Rework' && c.repair_note) {
+                    html += '<div class="mt-1" style="font-size:10px;color:#997404;background:#fff8e1;padding:3px 6px;border-radius:4px;border-left:2px solid #e0a800;"><i class="fa-solid fa-wrench me-1"></i>' + escHtml(c.repair_note) + '</div>';
+                }
+                html += '</td>';
                 if (modul === 'test_running') html += '<td>' + (c.kategori || '-') + '</td>';
                 if (modul !== 'test_running') html += '<td style="font-size:10px;color:#666;">' + (c.parameter || '') + '</td>';
                 html += '<td class="text-center fw-bold" style="color:' + resultColor + ';">' + result + '</td>';
@@ -2386,45 +2486,47 @@ function showToast(type, msg) {
 <?php endif; ?>
 
 <?php if($is_operator): ?>
-// --- AJAX load spec engine model ---
-$(document).ready(function(){
-    // Opsi "Not Use" cuma muncul buat kombinasi model + item tertentu:
-    // - Assembly Check "Connection of wiring harnesses are correct?" -> cuma model EJ & LE
-    // - Assembly Check "Is CW thermo switch using red threebond?"     -> cuma model 120
-    // - Function of Component "Headlamp"                              -> cuma model 120
-    function updateAssemblyNotUseOptions(model) {
-        model = (model || '').toUpperCase();
-        var isEJorLE = model.indexOf('EJ') !== -1 || model.indexOf('LE') !== -1;
-        var is120    = model.indexOf('120') !== -1;
+// Opsi "Not Use" cuma muncul buat kombinasi model + item tertentu:
+// - Assembly Check "Connection of wiring harnesses are correct?" -> cuma model EJ & LE
+// - Assembly Check "Is CW thermo switch using red threebond?"     -> cuma model 120
+// - Function of Component "Headlamp"                              -> cuma model 120
+// Fungsi ini GLOBAL (bukan di dalam $(document).ready) biar bisa dipanggil juga dari
+// loadTRForRework() waktu mode rework meng-load ulang engine_model tanpa trigger('change').
+function updateAssemblyNotUseOptions(model) {
+    model = (model || '').toUpperCase();
+    var isEJorLE = model.indexOf('EJ') !== -1 || model.indexOf('LE') !== -1;
+    var is120    = model.indexOf('120') !== -1;
 
-        function applyRule($sel, needsNotUse) {
-            var hasNotUse = $sel.find('option[value="Not Use"]').length > 0;
-            if (needsNotUse && !hasNotUse) {
-                $sel.append('<option value="Not Use">Not Use</option>');
-            } else if (!needsNotUse && hasNotUse) {
-                if ($sel.val() === 'Not Use') $sel.val('');
-                $sel.find('option[value="Not Use"]').remove();
-            }
+    function applyRule($sel, needsNotUse) {
+        var hasNotUse = $sel.find('option[value="Not Use"]').length > 0;
+        if (needsNotUse && !hasNotUse) {
+            $sel.append('<option value="Not Use">Not Use</option>');
+        } else if (!needsNotUse && hasNotUse) {
+            if ($sel.val() === 'Not Use') $sel.val('');
+            $sel.find('option[value="Not Use"]').remove();
         }
-
-        $('.assembly-check-sel').each(function() {
-            var $sel = $(this);
-            var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
-            var needsNotUse = false;
-            if (itemName.indexOf('Connection of wiring harnesses are correct') !== -1 && isEJorLE) needsNotUse = true;
-            if (itemName.indexOf('Is CW thermo switch using red threebond') !== -1 && is120) needsNotUse = true;
-            applyRule($sel, needsNotUse);
-        });
-
-        $('.function-comp-sel').each(function() {
-            var $sel = $(this);
-            var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
-            var isLE = model.indexOf('LE') !== -1;
-            var needsNotUse = (itemName.indexOf('Headlamp') !== -1 && model !== '' && !isLE);
-            applyRule($sel, needsNotUse);
-        });
     }
 
+    $('.assembly-check-sel').each(function() {
+        var $sel = $(this);
+        var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
+        var needsNotUse = false;
+        if (itemName.indexOf('Connection of wiring harnesses are correct') !== -1 && isEJorLE) needsNotUse = true;
+        if (itemName.indexOf('Is CW thermo switch using red threebond') !== -1 && is120) needsNotUse = true;
+        applyRule($sel, needsNotUse);
+    });
+
+    $('.function-comp-sel').each(function() {
+        var $sel = $(this);
+        var itemName = $sel.closest('div').find('input[name="chk_item[]"]').val() || '';
+        var isLE = model.indexOf('LE') !== -1;
+        var needsNotUse = (itemName.indexOf('Headlamp') !== -1 && model !== '' && !isLE);
+        applyRule($sel, needsNotUse);
+    });
+}
+
+// --- AJAX load spec engine model ---
+$(document).ready(function(){
     // Jalankan sekali pas load, jaga-jaga browser masih nyimpen pilihan model sebelumnya
     updateAssemblyNotUseOptions($('#engine_model').val());
 
@@ -2465,14 +2567,41 @@ $(document).ready(function(){
     $(document).on('change', '.assembly-check-sel', function(){
         var v = $(this).val();
         var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : (v === 'Not Use' ? '#6c757d' : '#333')));
-        $(this).css('color', color);
+        this.style.setProperty('color', color, 'important');
     });
 
     // Color coding Function of Component: sama polanya
     $(document).on('change', '.function-comp-sel', function(){
         var v = $(this).val();
         var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : (v === 'Not Use' ? '#6c757d' : '#333')));
-        $(this).css('color', color);
+        this.style.setProperty('color', color, 'important');
+    });
+
+    // Kotak "Catatan Masalah/Repair": muncul & BISA DIEDIT pas item ditandai bermasalah
+    // (NG buat Assembly/Function, "Yes" buat Leakage Check karena logicnya kebalik),
+    // lalu jadi READ ONLY begitu diganti ke "Rework" (proses perbaikan sudah selesai).
+    // Sekalian pasang color coding khusus Leakage Check di sini (Assembly/Function of
+    // Component sudah punya handler warna sendiri-sendiri di tempat lain).
+    $(document).on('change', '.chk-val-sel', function(){
+        var $wrap = $(this).closest('.chk-item-wrap');
+        var $note = $wrap.find('.chk-repair-note');
+        var type  = $wrap.find('input[name="chk_type[]"]').val();
+        var v     = $(this).val();
+        var isProblem = (type === 'Leakage Check') ? (v === 'Yes') : (v === 'NG');
+
+        if (type === 'Leakage Check') {
+            // Kebalik dari kategori lain: "No" (tidak bocor) = bagus = hijau, "Yes" (bocor) = masalah = merah
+            var leakColor = v === 'No' ? '#198754' : (v === 'Yes' ? '#dc3545' : (v === 'Rework' ? '#e0a800' : '#333'));
+            this.style.setProperty('color', leakColor, 'important');
+        }
+
+        if (isProblem) {
+            $note.prop('readonly', false).css('background', '').slideDown(150);
+        } else if (v === 'Rework') {
+            $note.prop('readonly', true).css('background', '#f7f7f7').slideDown(150);
+        } else {
+            $note.slideUp(150, function(){ $note.val(''); });
+        }
     });
 });
 <?php endif; ?>
@@ -2544,8 +2673,8 @@ $('#fi_engine_select').change(function(){
                             '<option value="" selected>Pilih</option>' +
                             '<option value="OK" style="color:green;">OK</option>' +
                             '<option value="NG" style="color:red;">NG</option>' +
-                            '<option value="Rework" style="color:#e0a800;">Rework</option>' +
                         '</select>' +
+                        '<textarea name="repair_note[]" class="form-control form-control-sm mt-1 fi-repair-note" style="font-size:10px; display:none;" rows="2" placeholder="Catatan repair..."></textarea>' +
                     '</td>';
                 tbody.appendChild(row);
 
@@ -2583,7 +2712,15 @@ $('#fi_engine_select').change(function(){
             $(document).on('change', '.fi-result-sel', function(){
                 var v = $(this).val();
                 var color = v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : '#333'));
-                $(this).css('color', color);
+                this.style.setProperty('color', color, 'important');
+                var $note = $(this).siblings('.fi-repair-note');
+                if (v === 'NG') {
+                    $note.prop('readonly', false).css('background', '').slideDown(150);
+                } else if (v === 'Rework') {
+                    $note.prop('readonly', true).css('background', '#f7f7f7').slideDown(150);
+                } else {
+                    $note.slideUp(150, function(){ $note.val(''); });
+                }
             });
 
             // Preview foto (per grup, bukan per item)
@@ -2864,6 +3001,9 @@ function resetFIForm() {
     resetFiEngineSearch();
     $('#fi_engine_model_display').val('');
     $('textarea[name="noted"]', '#form-fi').val('');
+    $('#fi_engine_search').prop('readonly', false).css({ background: '', color: '' });
+    $('#fi_edit_id').val('');
+    $('#btn_fi_submit').css('background', '').html('<i class="fa-solid fa-paper-plane me-2"></i>SIMPAN FINAL INSPECTION');
 }
 
 // -------------------------------------------------------
@@ -2992,14 +3132,26 @@ function loadPackingChecklist() {
                 html += '<input type="hidden" name="parameter[]" value="' + escHtml(item.parameter || '') + '">' + escHtml(item.item_name) + '</td>';
                 html += '<td class="text-start text-muted" style="font-size:11px;">' + escHtml(item.parameter || '') + '</td>';
                 html += '<td><select name="result[]" class="form-select form-select-sm text-center fw-bold pk-result-sel" style="min-width:70px;">';
-                html += '<option value="Check">Check</option><option value="NG">NG</option><option value="-">-</option></select></td>';
+                html += '<option value="Check">Check</option><option value="NG">NG</option><option value="-">-</option></select>';
+                html += '<textarea name="repair_note[]" class="form-control form-control-sm mt-1 pk-repair-note" style="font-size:10px; display:none;" rows="2" placeholder="Catatan repair..."></textarea></td>';
                 html += '<td><input type="file" name="foto[' + i + ']" accept="image/*" capture="environment" class="form-control form-control-sm pk-foto" style="font-size:10px; padding:2px 4px;">';
                 html += '<div class="pk-preview mt-1" style="display:none;"><img src="" style="max-width:80px; max-height:60px; border-radius:4px; border:1px solid #dee2e6;"></div></td></tr>';
             });
             html += '</tbody></table></div>';
             $('#pk_checklist_container').html(html);
             $('#pk_item_count').text(items.length + ' item checklist');
-            $(document).on('change', '.pk-result-sel', function(){ $(this).css('color', $(this).val() === 'NG' ? '#dc3545' : '#198754'); });
+            $(document).on('change', '.pk-result-sel', function(){
+                var v = $(this).val();
+                this.style.setProperty('color', v === 'NG' ? '#dc3545' : (v === 'Check' ? '#198754' : (v === 'Rework' ? '#e0a800' : '#333')), 'important');
+                var $note = $(this).siblings('.pk-repair-note');
+                if (v === 'NG') {
+                    $note.prop('readonly', false).css('background', '').slideDown(150);
+                } else if (v === 'Rework') {
+                    $note.prop('readonly', true).css('background', '#f7f7f7').slideDown(150);
+                } else {
+                    $note.slideUp(150, function(){ $note.val(''); });
+                }
+            });
             $(document).on('change', '.pk-foto', function(){
                 var file = this.files[0]; var preview = $(this).siblings('.pk-preview');
                 if (file) { var reader = new FileReader(); reader.onload = function(e) { preview.find('img').attr('src', e.target.result); preview.show(); }; reader.readAsDataURL(file); } else { preview.hide(); }
@@ -3013,6 +3165,388 @@ $(document).on('click', '#btn-packing', function(){ setTimeout(loadPackingCheckl
 if (window.location.hash === '#packing') { $(document).ready(function(){ loadPackingChecklist(); }); }
 
 // Cek hasil test running (untuk operator FI)
+// =========================================================
+// FITUR REWORK: load daftar "Perlu Rework" per modul + render
+// =========================================================
+function loadReworkList(modul, panelId, listId) {
+    $.get('ambil_rework_list.php', { modul: modul }, function(res) {
+        if (res.status !== 'ok' || !res.list || res.list.length === 0) {
+            $('#' + panelId).hide();
+            return;
+        }
+        var html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:12px;">';
+        html += '<thead><tr style="background:#f8f9fa;"><th>Engine No.</th><th>Model</th><th>Direject oleh</th><th>Alasan</th><th style="width:110px;">Aksi</th></tr></thead><tbody>';
+        res.list.forEach(function(item) {
+            html += '<tr>';
+            html += '<td class="fw-bold">' + escHtml(item.engine_no) + '</td>';
+            html += '<td>' + escHtml(item.engine_model) + '</td>';
+            html += '<td>' + escHtml(item.rejected_by) + '</td>';
+            html += '<td class="text-danger">' + escHtml(item.rejection_note || '-') + '</td>';
+            html += '<td><button type="button" class="btn btn-sm fw-bold" style="background:#997404;color:#fff;" ' +
+                    'onclick="loadForRework(\'' + modul + '\', ' + item.id + ')"><i class="fa-solid fa-pen me-1"></i>Edit & Rework</button></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        $('#' + listId).html(html);
+        $('#' + panelId).show();
+    }, 'json').fail(function() {
+        $('#' + panelId).hide();
+    });
+}
+
+function loadFIForRework(id) {
+    switchModule('final-inspection');
+    $.get('get_detail_approval.php', { id: id, modul: 'final_inspection' }, function(res) {
+        if (res.status !== 'ok') { alert('Gagal memuat data: ' + res.message); return; }
+        var row = res.row;
+        var checklist = res.checklist || [];
+
+        // Pilih engine di dropdown search (kalau ada di daftar - engine yang FI terakhirnya
+        // rejected memang otomatis muncul lagi di dropdown ini). PENTING: set value TANPA
+        // trigger('change') - soalnya handler normal fi_engine_select bakal fetch checklist
+        // KOSONG dari master lewat AJAX, dan karena async, itu bisa nimpa balik checklist
+        // yang kita render pakai data lama di bawah ini (race condition / keliatan "reset").
+        $('#fi_engine_select').val(row.engine_no);
+        $('#fi_engine_search').val(row.engine_no + ' — ' + row.engine_model);
+        $('#fi_engine_model_display').val(row.engine_model);
+        $('textarea[name="noted"]', '#form-fi').val(row.noted || '');
+
+        // Engine No. DIKUNCI pas mode rework - nggak boleh diganti/dihapus
+        $('#fi_engine_search').prop('readonly', true).css({ background: '#f7f7f7', color: '#666' });
+        $('#fi_engine_search').siblings('.excel-filter-btn, button').hide(); // sembunyikan tombol "x" clear kalau ada
+
+        // Render tabel checklist pakai DATA TERSIMPAN (hasil NG/OK/Rework & foto lama),
+        // bukan checklist kosong dari master.
+        var tpl   = document.getElementById('tpl_fi_table');
+        var clone = tpl.content.cloneNode(true);
+        var tbody = clone.querySelector('#fi_tbody');
+
+        // Cek dulu grup foto mana aja yang ADA item NG-nya - cuma grup itu yang perlu
+        // upload ulang, grup lain (semua item-nya OK/Rework) fotonya dipertahankan otomatis.
+        var groupsWithNG = {};
+        checklist.forEach(function(item) {
+            if (item.result === 'NG') groupsWithNG[item.foto_group || 0] = true;
+        });
+
+        var lastGroup = null, subCounter = 0;
+        checklist.forEach(function(item, i) {
+            var param = item.parameter || '';
+            var group = item.foto_group || 0;
+            if (group !== lastGroup) { lastGroup = group; subCounter = 0; }
+            subCounter++;
+            var displayNo = group + '.' + subCounter;
+            var savedResult = item.result || '';
+            var isProblem = (savedResult === 'NG');
+
+            var tr = document.createElement('tr');
+            var savedNote = item.repair_note || '';
+            var noteReadonly = !isProblem; // udah Rework atau OK dari awal -> readonly/terkunci
+            tr.innerHTML =
+                '<td class="text-center fw-bold text-muted">' + displayNo + '</td>' +
+                '<td class="text-start fw-semibold">' +
+                    '<input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">' +
+                    '<input type="hidden" name="parameter[]" value="' + escHtml(param) + '">' +
+                    '<input type="hidden" name="foto_group_of_item[]" value="' + group + '">' +
+                    escHtml(item.item_name) +
+                '</td>' +
+                '<td class="text-start text-muted" style="font-size:11px; white-space:pre-line;">' + escHtml(param) + '</td>' +
+                '<td>' +
+                    '<select name="result[]" class="form-select form-select-sm text-center fw-bold fi-result-sel" style="min-width:70px;' + (isProblem ? '' : ' pointer-events:none; background:#f0f0f0; opacity:0.7;') + '"' + (isProblem ? '' : ' tabindex="-1"') + '>' +
+                        '<option value="">Pilih</option>' +
+                        '<option value="OK"' + (savedResult==='OK'?' selected':'') + ' style="color:green;">OK</option>' +
+                        '<option value="NG"' + (savedResult==='NG'?' selected':'') + ' style="color:red;">NG</option>' +
+                        '<option value="Rework"' + (savedResult==='Rework'?' selected':'') + ' style="color:#e0a800;">Rework</option>' +
+                    '</select>' +
+                    '<textarea name="repair_note[]" class="form-control form-control-sm mt-1 fi-repair-note" style="font-size:10px;' + (savedNote || isProblem ? '' : ' display:none;') + (noteReadonly ? ' background:#f7f7f7;' : '') + '" rows="2" placeholder="Catatan masalah / apa yang diperbaiki..."' + (noteReadonly ? ' readonly' : '') + '>' + escHtml(savedNote) + '</textarea>' +
+                '</td>';
+            tbody.appendChild(tr);
+
+            var nextGroup = (i + 1 < checklist.length) ? (checklist[i+1].foto_group || 0) : null;
+            if (nextGroup !== group) {
+                var gtr = document.createElement('tr');
+                var groupNeedsUpload = !!groupsWithNG[group];
+                gtr.style.background = groupNeedsUpload ? '#fff8e1' : '#fdf5f5';
+                gtr.style.borderBottom = groupNeedsUpload ? '2px solid #e0a800' : '2px solid #7B1D1D';
+                var imgSize = groupNeedsUpload ? 'max-width:60px;max-height:45px;' : 'max-width:110px;max-height:85px;';
+                var existingFotoImg = item.foto_base64 ? ('<img src="' + item.foto_base64 + '" style="' + imgSize + 'border-radius:4px;border:1px solid #dee2e6;object-fit:cover;cursor:pointer;" onclick="window.open(this.src)">') : '';
+                var fotoInputHtml = groupNeedsUpload
+                    ? '<input type="file" name="foto_group[' + group + ']" accept="image/*" capture="environment" ' +
+                      'class="form-control form-control-sm fi-foto-group" style="font-size:10px; padding:3px 6px; border-color:#e0a800;">' +
+                      '<div class="text-warning fw-bold" style="font-size:9px;"><i class="fa-solid fa-triangle-exclamation me-1"></i>Ada item NG, upload foto baru</div>'
+                    : '';
+                gtr.innerHTML =
+                    '<td colspan="3" class="align-middle py-2">' +
+                        '<div class="d-flex align-items-center gap-2" style="color:' + (groupNeedsUpload ? '#997404' : '#7B1D1D') + ';font-size:12px;">' +
+                            '<i class="fa-solid fa-camera"></i><span class="fw-bold">Foto ' + group + '</span>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td class="align-middle py-2">' +
+                        fotoInputHtml +
+                        '<div class="fi-preview-group mt-1" style="' + (existingFotoImg ? '' : 'display:none;') + '">' + existingFotoImg + '</div>' +
+                    '</td>';
+                tbody.appendChild(gtr);
+            }
+        });
+
+        $('#fi_checklist_container').empty().append(clone);
+        $('#fi_item_count').text(checklist.length + ' item checklist (mode rework)');
+        $('#btn_fi_submit').prop('disabled', false);
+
+        $(document).off('change', '.fi-result-sel').on('change', '.fi-result-sel', function(){
+            var v = $(this).val();
+            this.style.setProperty('color', v === 'NG' ? '#dc3545' : (v === 'OK' ? '#198754' : (v === 'Rework' ? '#e0a800' : '#333')), 'important');
+            var $note = $(this).siblings('.fi-repair-note');
+            if (v === 'NG') {
+                $note.prop('readonly', false).css('background', '').slideDown(150);
+            } else if (v === 'Rework') {
+                $note.prop('readonly', true).css('background', '#f7f7f7').slideDown(150);
+            } else {
+                $note.slideUp(150, function(){ $note.val(''); });
+            }
+        });
+        $(document).off('change', '.fi-foto-group').on('change', '.fi-foto-group', function(){
+            var file = this.files[0];
+            var preview = $(this).closest('td').find('.fi-preview-group');
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) { preview.find('img').remove(); preview.append('<img style="max-width:60px;max-height:45px;border-radius:4px;border:1px solid #dee2e6;object-fit:cover;">'); preview.find('img').attr('src', e.target.result); preview.show(); };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        $('#fi_edit_id').val(id);
+        $('#btn_fi_submit').html('<i class="fa-solid fa-rotate me-2"></i>UPDATE (REWORK)').css('background', '#997404');
+        showToast('warning', 'Mode Rework: item NG bisa diedit, item lain terkunci. Ganti ke Rework setelah diperbaiki.');
+        $('html, body').animate({ scrollTop: $('#form-fi').offset().top - 80 }, 300);
+    }, 'json').fail(function() {
+        alert('Gagal menghubungi server.');
+    });
+}
+
+function loadForRework(modul, id) {
+    if (modul === 'test_running') loadTRForRework(id);
+    else if (modul === 'final_inspection') loadFIForRework(id);
+    else if (modul === 'packing') loadPKForRework(id);
+}
+
+$(document).ready(function(){
+    loadReworkList('test_running', 'tr_rework_panel', 'tr_rework_list');
+    loadReworkList('final_inspection', 'fi_rework_panel', 'fi_rework_list');
+    loadReworkList('packing', 'pk_rework_panel', 'pk_rework_list');
+});
+
+function loadPKForRework(id) {
+    switchModule('packing');
+    $.get('get_detail_approval.php', { id: id, modul: 'packing' }, function(res) {
+        if (res.status !== 'ok') { alert('Gagal memuat data: ' + res.message); return; }
+        var row = res.row;
+        var checklist = res.checklist || [];
+
+        $('#pk_engine_select').val(row.engine_no).trigger('change');
+        $('#pk_engine_search').val(row.engine_no + ' — ' + row.engine_model);
+        $('#pk_engine_model_display').val(row.engine_model);
+        $('textarea[name="noted"]', '#form-pk').val(row.noted || '');
+        var $opInput = $('input[name="operator_name"]', '#form-pk');
+        if (!$opInput.prop('readonly')) $opInput.val(row.operator_name || '');
+
+        // Engine No. DIKUNCI pas mode rework - nggak boleh diganti/dihapus
+        $('#pk_engine_search').prop('readonly', true).css({ background: '#f7f7f7', color: '#666' });
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-bordered m-0 text-center align-middle" style="font-size:12px;">';
+        html += '<thead><tr style="background:linear-gradient(90deg,#5a1414,#7B1D1D); color:#fff;">';
+        html += '<th style="width:35px;">#</th><th class="text-start" style="min-width:200px;">Item</th>';
+        html += '<th class="text-start" style="min-width:200px;">Parameter / Standard</th>';
+        html += '<th style="width:100px;">Hasil</th><th style="width:160px;">Foto</th>';
+        html += '</tr></thead><tbody>';
+        checklist.forEach(function(item, i) {
+            var savedResult = item.result || 'Check';
+            var savedNote = item.repair_note || '';
+            var isProblem = (savedResult === 'NG');
+            var noteReadonly = !isProblem;
+            html += '<tr><td class="text-center fw-bold text-muted">' + (i+1) + '</td>';
+            html += '<td class="text-start fw-semibold"><input type="hidden" name="item_name[]" value="' + escHtml(item.item_name) + '">';
+            html += '<input type="hidden" name="parameter[]" value="' + escHtml(item.parameter || '') + '">' + escHtml(item.item_name) + '</td>';
+            html += '<td class="text-start text-muted" style="font-size:11px;">' + escHtml(item.parameter || '') + '</td>';
+            html += '<td><select name="result[]" class="form-select form-select-sm text-center fw-bold pk-result-sel" style="min-width:70px;' + (isProblem ? '' : ' pointer-events:none; background:#f0f0f0; opacity:0.7;') + '"' + (isProblem ? '' : ' tabindex="-1"') + '>';
+            ['Check','NG','Rework','-'].forEach(function(opt) {
+                html += '<option value="' + opt + '"' + (savedResult === opt ? ' selected' : '') + '>' + opt + '</option>';
+            });
+            html += '</select>';
+            html += '<textarea name="repair_note[]" class="form-control form-control-sm mt-1 pk-repair-note" style="font-size:10px;' + (savedNote || isProblem ? '' : ' display:none;') + (noteReadonly ? ' background:#f7f7f7;' : '') + '" rows="2" placeholder="Catatan masalah / apa yang diperbaiki..."' + (noteReadonly ? ' readonly' : '') + '>' + escHtml(savedNote) + '</textarea></td>';
+            var existingImg = item.foto_base64 ? ('<img src="' + item.foto_base64 + '" style="max-width:80px;max-height:60px;border-radius:4px;border:1px solid #dee2e6;">') : '';
+            html += '<td><input type="file" name="foto[' + i + ']" accept="image/*" capture="environment" class="form-control form-control-sm pk-foto" style="font-size:10px; padding:2px 4px;">';
+            html += '<div class="pk-preview mt-1" style="' + (existingImg ? '' : 'display:none;') + '">' + existingImg + '</div></td></tr>';
+        });
+        html += '</tbody></table></div>';
+        $('#pk_checklist_container').html(html);
+        $('#pk_item_count').text(checklist.length + ' item checklist (mode rework)');
+
+        $(document).off('change', '.pk-result-sel').on('change', '.pk-result-sel', function(){
+            var v = $(this).val();
+            this.style.setProperty('color', v === 'NG' ? '#dc3545' : (v === 'Check' ? '#198754' : (v === 'Rework' ? '#e0a800' : '#333')), 'important');
+            var $note = $(this).siblings('.pk-repair-note');
+            if (v === 'NG') {
+                $note.prop('readonly', false).css('background', '').slideDown(150);
+            } else if (v === 'Rework') {
+                $note.prop('readonly', true).css('background', '#f7f7f7').slideDown(150);
+            } else {
+                $note.slideUp(150, function(){ $note.val(''); });
+            }
+        });
+        $(document).off('change', '.pk-foto').on('change', '.pk-foto', function(){
+            var file = this.files[0]; var preview = $(this).siblings('.pk-preview');
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) { preview.find('img').remove(); preview.append('<img style="max-width:80px;max-height:60px;border-radius:4px;border:1px solid #dee2e6;">'); preview.find('img').attr('src', e.target.result); preview.show(); };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        $('#pk_edit_id').val(id);
+        $('#btn_pk_submit').html('<i class="fa-solid fa-rotate me-2"></i>UPDATE (REWORK)').css('background', '#997404');
+        showToast('warning', 'Mode Rework: item NG bisa diedit, item lain terkunci. Ganti ke Rework setelah diperbaiki.');
+        $('html, body').animate({ scrollTop: $('#form-pk').offset().top - 80 }, 300);
+    }, 'json').fail(function() {
+        alert('Gagal menghubungi server.');
+    });
+}
+
+function loadTRForRework(id) {
+    switchModule('test-running');
+    $.get('get_detail_approval.php', { id: id, modul: 'test_running' }, function(res) {
+        if (res.status !== 'ok') { alert('Gagal memuat data: ' + res.message); return; }
+        var r = res.row;
+        var $form = $('#form-tr');
+
+        function cleanNum(val) {
+            if (val === null || val === undefined || val === '') return '';
+            var s = String(val).trim();
+            if (/^-?\d+(\.\d+)?$/.test(s)) {
+                var n = parseFloat(s);
+                return isNaN(n) ? s : String(n);
+            }
+            return s;
+        }
+
+        // Isi semua field TAPI JANGAN dikunci - operator boleh edit ulang item yang NG jadi Rework
+        $.each(r, function(key, val) {
+            var $field = $form.find('[name="' + key + '"]');
+            if ($field.length === 0) return;
+            var type = ($field.attr('type') || '').toLowerCase();
+            if (type === 'file') return;
+            // Field yang memang default-nya selalu readonly (bukan hasil edit) dibiarkan apa adanya
+            if ($field.prop('readonly') && $field.hasClass && $field.attr('id') && ['cont_power','max_power','lbl_hi_idle','fic_standard'].indexOf($field.attr('id')) !== -1) {
+                $field.val(cleanNum(val));
+                return;
+            }
+            $field.val(cleanNum(val));
+        });
+
+        // Engine No. DIKUNCI - nggak boleh diubah/dihapus pas mode rework, soalnya update-nya
+        // nempel ke record yang SAMA berdasarkan id + engine_no.
+        $form.find('input[name="engine_no"]').prop('readonly', true).css({ background: '#f7f7f7', color: '#666' });
+
+        // PENTING: field engine_model di atas diisi TANPA trigger('change'), jadi opsi "Not Use"
+        // (khusus model EJ/LE/120) nggak otomatis nambah ke dropdown Assembly/Function of Component.
+        // Panggil manual di sini, SEBELUM checklist di bawah ini nyoba nge-set value dropdownnya.
+        if (typeof updateAssemblyNotUseOptions === 'function') {
+            updateAssemblyNotUseOptions(r.engine_model);
+        }
+
+        // Kunci SEMUA field data angka (Row1/Row2/Row3/Correction/FIC) secara default, buka
+        // cuma section yang ditandai "NG" waktu submit awal (ng_sections). Ini fokus operator
+        // langsung ke bagian yang bermasalah, sisanya aman dari kesalahan tidak sengaja.
+        var ngSections = (r.ng_sections || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        var allSections = ['row1','row2','row3','correction','fic'];
+        allSections.forEach(function(sec) {
+            var $fields = $form.find('.tr-sec-' + sec);
+            var isFlagged = ngSections.indexOf(sec) !== -1;
+            if (isFlagged) {
+                $fields.prop('readonly', false).css({ background: '', 'pointer-events': '', opacity: '' });
+            } else {
+                $fields.prop('readonly', true).css({ background: '#f0f0f0', color: '#666', 'pointer-events': 'none', opacity: '0.75' });
+            }
+        });
+        // Centang ulang checkbox "NG" sesuai yang tersimpan, biar kelihatan section mana yang ditandai
+        $form.find('.ng-section-chk').each(function() {
+            $(this).prop('checked', ngSections.indexOf($(this).val()) !== -1);
+        });
+
+        // Isi dropdown checklist dengan jawaban TERSIMPAN. Item yang UDAH OK/lolos dikunci
+        // (dipertahankan apa adanya, nggak boleh diutak-atik), cuma item yang BERMASALAH
+        // (NG, atau "Yes" khusus Leakage Check) yang boleh diedit jadi "Rework".
+        if (res.checklist && res.checklist.length > 0) {
+            $form.find('select[name="chk_val[]"]').each(function() {
+                var $sel = $(this);
+                var $wrap = $sel.closest('.chk-item-wrap');
+                var itemName = $wrap.find('input[name="chk_item[]"]').val();
+                var type     = $wrap.find('input[name="chk_type[]"]').val();
+                var match = res.checklist.find(function(c) { return c.item_name === itemName; });
+                if (!match) return;
+
+                $sel.val(match.jawaban);
+                var $note = $wrap.find('.chk-repair-note');
+                if (match.repair_note) $note.val(match.repair_note);
+
+                var isProblem = (type === 'Leakage Check') ? (match.jawaban === 'Yes') : (match.jawaban === 'NG');
+                if (isProblem) {
+                    // Item bermasalah - opsi "Rework" cuma ditambahin di sini (mode rework),
+                    // nggak ada di dropdown submit normal, biar operator fokus ke yang emang perlu.
+                    if ($sel.find('option[value="Rework"]').length === 0) {
+                        $sel.append('<option value="Rework" style="color:#e0a800;">Rework</option>');
+                    }
+                    $sel.val(match.jawaban);
+                    // Item bermasalah - boleh diedit, tinggal ganti ke Rework setelah diperbaiki
+                    $note.prop('readonly', false).css('background', '').show();
+                } else {
+                    // Item udah OK/lolos dari awal - dikunci, operator fokus ke yang NG aja
+                    $sel.css({ 'pointer-events': 'none', background: '#f0f0f0', opacity: '0.7' }).attr('tabindex', '-1');
+                    if (match.repair_note) $note.prop('readonly', true).css('background', '#f7f7f7').show();
+                }
+            });
+        }
+
+        // Preview foto lama (kalau operator nggak upload ulang, foto lama otomatis dipertahankan di server)
+        if (res.foto && res.foto.length > 0) {
+            for (var fi = 0; fi < 3; fi++) {
+                var src = res.foto[fi];
+                var $preview = $('#preview_foto_engine_' + (fi + 1));
+                if (src) { $preview.find('img').attr('src', src); $preview.show(); }
+                else { $preview.hide().find('img').attr('src', ''); }
+            }
+        }
+
+        // Muat label standar sesuai model
+        if (r.engine_model) {
+            $.ajax({
+                url: 'ambil_master_spec.php', type: 'POST', data: { engine_model: r.engine_model }, dataType: 'json',
+                success: function(spec) {
+                    $('#std_output_lbl').text(spec.output || '-');
+                    $('#std_torque_lbl').text(spec.torque || '-');
+                    $('#std_load_lbl').text(spec.load || '-');
+                    $('#std_fuel_mm3_lbl').text(spec.fuel_mm3 || '-');
+                    $('#std_fuel_gkwh_lbl').text(spec.fuel_gkwh || '-');
+                    $('#std_sd_lbl').text(spec.sd_bsu || '-');
+                    $('#lbl_ex_r1').text(spec.exhaust || '-');
+                    $('#lbl_oil_r1').text(spec.oil_temp || '-');
+                    $('#lbl_lo_r1').text(spec.lo || '-');
+                    $('#std_correct_co_lbl').text(spec.correct_co || '-');
+                    $('#lbl_speed1').text(spec.speed1 || '-');
+                    $('#lbl_speed2').text(spec.speed2 || '-');
+                    $('#lbl_speed3').text(spec.speed3 || '-');
+                }
+            });
+        }
+
+        $('#tr_edit_id').val(id);
+        $form.find('.btn-submit-tr').html('<i class="fa-solid fa-rotate me-2"></i>UPDATE DATA (REWORK)').css('background', '#997404');
+        showToast('warning', 'Mode Rework: edit item yang NG jadi Rework, lalu Update.');
+        $('html, body').animate({ scrollTop: $form.offset().top - 80 }, 300);
+    }, 'json').fail(function() {
+        alert('Gagal menghubungi server.');
+    });
+}
+
 function searchTRResult() {
     var engine_no = $('#search_tr_engine_no').val().trim();
     if (!engine_no) { alert('Ketik Engine No. terlebih dahulu!'); return; }
@@ -3067,11 +3601,13 @@ function searchTRResult() {
             if (res.checklist && res.checklist.length > 0) {
                 $form.find('select[name="chk_val[]"]').each(function() {
                     var $sel = $(this);
-                    var $row = $sel.closest('div');
-                    var itemName = $row.find('input[name="chk_item[]"]').val();
+                    var $wrap = $sel.closest('.chk-item-wrap');
+                    var itemName = $wrap.find('input[name="chk_item[]"]').val();
                     var match = res.checklist.find(function(c) { return c.item_name === itemName; });
                     if (match) {
                         $sel.val(match.jawaban);
+                        var $note = $wrap.find('.chk-repair-note');
+                        if (match.repair_note) { $note.val(match.repair_note).prop('readonly', true).show(); }
                     }
                     $sel.prop('disabled', true).addClass('tr-lookup-locked').css({ background: '#f7f7f7', color: '#666', opacity: '1', pointerEvents: 'none' });
                 });
@@ -3168,6 +3704,16 @@ function clearTRSearch() {
         $f.prop('readonly', false).prop('disabled', false);
     });
 
+    // Buka kunci visual checklist item yang dikunci pas mode rework (item yang udah OK)
+    $form.find('select[name="chk_val[]"]').css({ 'pointer-events': '', background: '', opacity: '' }).removeAttr('tabindex');
+    $form.find('.chk-repair-note').prop('readonly', false).css('background', '').hide().val('');
+
+    // Buka kunci visual section data angka (Row1/Row2/Row3/Correction/FIC) & uncheck semua NG
+    ['row1','row2','row3','correction','fic'].forEach(function(sec) {
+        $form.find('.tr-sec-' + sec).css({ background: '', color: '', 'pointer-events': '', opacity: '' });
+    });
+    $form.find('.ng-section-chk').prop('checked', false);
+
     // Sembunyikan & kosongkan preview foto (bukan form field, tidak ikut ter-reset otomatis)
     for (var fi = 1; fi <= 3; fi++) {
         $('#preview_foto_engine_' + fi).hide().find('img').attr('src', '');
@@ -3183,7 +3729,8 @@ function clearTRSearch() {
     <?php if ($op_area_tr): ?>
     $form.find('input[name="operator_name"]').val(<?php echo json_encode($_SESSION['nama_lengkap']); ?>);
     <?php endif; ?>
-    $form.find('.btn-submit-tr').prop('disabled', false).html('<i class="fa-solid fa-paper-plane me-2"></i>SIMPAN DATA TEST RUN');
+    $('#tr_edit_id').val('');
+    $form.find('.btn-submit-tr').prop('disabled', false).css('background', '').html('<i class="fa-solid fa-paper-plane me-2"></i>SIMPAN DATA TEST RUN');
 }
 
 // Enter key untuk search

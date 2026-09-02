@@ -12,6 +12,8 @@ if (!isset($_SESSION['status']) || $_SESSION['status'] != "login") {
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
+    $edit_id = intval($_POST['edit_id'] ?? 0);
+
     $operator_name = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
     $operator_test = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
 
@@ -96,15 +98,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $belt_tension_left     = !empty($_POST['belt_tension_left'])     ? $_POST['belt_tension_left']     : 'NULL';
     $belt_tension_right    = !empty($_POST['belt_tension_right'])    ? $_POST['belt_tension_right']    : 'NULL';
     $noted                 = isset($_POST['noted']) ? mysqli_real_escape_string($koneksi, $_POST['noted']) : '';
+    $ng_sections_arr       = $_POST['ng_section'] ?? [];
+    $ng_sections           = mysqli_real_escape_string($koneksi, implode(',', array_map('trim', $ng_sections_arr)));
 
-    // 6. UPLOAD FOTO ENGINE (3 foto)
+    // 6. UPLOAD FOTO ENGINE (3 foto) - kalau mode rework & operator nggak upload ulang,
+    // path lama dipertahankan (diisi di bawah, setelah cek mode rework).
     $upload_dir = 'uploads/test_running/';
     if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
     $allowed = ['jpg', 'jpeg', 'png', 'webp'];
 
-    $foto_engine_1 = 'NULL';
-    $foto_engine_2 = 'NULL';
-    $foto_engine_3 = 'NULL';
+    $old_foto = ['NULL', 'NULL', 'NULL'];
+    if ($edit_id > 0) {
+        $oldRow = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT foto_engine_1, foto_engine_2, foto_engine_3 FROM result_test_run WHERE id = $edit_id"));
+        if ($oldRow) {
+            for ($fn = 1; $fn <= 3; $fn++) {
+                $p = $oldRow['foto_engine_' . $fn];
+                $old_foto[$fn-1] = $p ? "'" . mysqli_real_escape_string($koneksi, $p) . "'" : 'NULL';
+            }
+        }
+    }
+    $foto_engine_1 = $old_foto[0];
+    $foto_engine_2 = $old_foto[1];
+    $foto_engine_3 = $old_foto[2];
 
     for ($fn = 1; $fn <= 3; $fn++) {
         $field = 'foto_engine_' . $fn;
@@ -120,6 +135,85 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
     }
+
+    // =====================================================================
+    // MODE REWORK: edit_id diisi -> UPDATE record yang REJECTED, bukan INSERT baru.
+    // =====================================================================
+    if ($edit_id > 0) {
+        $existing = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id, engine_no FROM result_test_run WHERE id = $edit_id"));
+        if (!$existing || $existing['engine_no'] !== $engine_no) {
+            die("Data rework tidak valid (engine_no tidak cocok).");
+        }
+        $isRejected = mysqli_fetch_assoc(mysqli_query($koneksi, "
+            SELECT id FROM approvals WHERE test_run_id = $edit_id AND stage = 'Test_Running' AND status = 'rejected' LIMIT 1
+        "));
+        if (!$isRejected) {
+            die("Data ini bukan data yang di-reject, tidak bisa di-rework.");
+        }
+
+        $id_test_run = $edit_id;
+
+        $query_update = "UPDATE result_test_run SET
+            test_name='$test_name', engine_model='$engine_model', test_date='$test_date', bench_test='$bench_test',
+            operator_name='$operator_name', lube_oil='$lube_oil', fuel_type='$fuel_type',
+            fuel_sp_gravity=$fuel_sp_gravity, dry_temp=$dry_temp, wet_temp=$wet_temp, atmosphere_press=$atmosphere_press,
+            limiter_actual='$limiter_actual', limiter_after_set='$limiter_after_set',
+            cont_power='$cont_power', max_power='$max_power', hi_idle_std='$hi_idle_std',
+            hi_idle_actual=$hi_idle_actual, eng_speed_max=$eng_speed_max, eng_speed_min=$eng_speed_min,
+            r1_actual_nm=$r1_actual_nm, r1_corrected_kw=$r1_corrected_kw, r1_torque_nm=$r1_torque_nm, r1_load_kgm=$r1_load_kgm,
+            r1_fuel_cc_30sec=$r1_fuel_cc_30sec, r1_fuel_mm3_st=$r1_fuel_mm3_st, r1_fuel_g_kwh=$r1_fuel_g_kwh, r1_sd_bsu=$r1_sd_bsu,
+            r1_temp_exhaust=$r1_temp_exhaust, r1_temp_oil=$r1_temp_oil, r1_lo_press=$r1_lo_press, r1_intake_press=$r1_intake_press,
+            r1_exhaust_press=$r1_exhaust_press, r1_nox=$r1_nox, r1_co=$r1_co, r1_co2=$r1_co2, r1_o2=$r1_o2,
+            r2_actual_nm=$r2_actual_nm, r2_corrected_kw=$r2_corrected_kw, r2_temp_exhaust=$r2_temp_exhaust,
+            r2_lo_press=$r2_lo_press, r2_intake_press=$r2_intake_press, r2_exhaust_press=$r2_exhaust_press,
+            r2_nox=$r2_nox, r2_co=$r2_co, r2_co2=$r2_co2, r2_o2=$r2_o2, r2_correct_co=$r2_correct_co,
+            r3_torque_nm=$r3_torque_nm, r3_coolant_temp=$r3_coolant_temp, r3_current_glow=$r3_current_glow,
+            r3_current_wire=$r3_current_wire, r3_torque_switch_lo=$r3_torque_switch_lo, r3_torque_pipe_air=$r3_torque_pipe_air,
+            r3_torque_bolt_cw=$r3_torque_bolt_cw, r3_torque_injection_injector=$r3_torque_injection_injector,
+            r3_torque_injection_fop=$r3_torque_injection_fop, r3_torque_nut_joint=$r3_torque_nut_joint,
+            correction_alpha=$correction_alpha, correction_beta=$correction_beta, blow_by=$blow_by,
+            min_eng_speed_lo=$min_eng_speed_lo, pulley_distance=$pulley_distance, fic_standard='$fic_standard',
+            fic_actual_left=$fic_actual_left, fic_actual_right=$fic_actual_right,
+            fic_before_test_left=$fic_before_test_left, fic_before_test_right=$fic_before_test_right,
+            fic_after_test_left=$fic_after_test_left, fic_after_test_right=$fic_after_test_right,
+            belt_tension_left=$belt_tension_left, belt_tension_right=$belt_tension_right,
+            noted='$noted', ng_sections='$ng_sections', operator_test='$operator_test',
+            foto_engine_1=$foto_engine_1, foto_engine_2=$foto_engine_2, foto_engine_3=$foto_engine_3
+        WHERE id = $id_test_run";
+
+        if (!mysqli_query($koneksi, $query_update)) {
+            echo "<h3>Gagal Update ke Database!</h3><p>Error: " . mysqli_error($koneksi) . "</p>";
+            die();
+        }
+
+        // Hapus checklist lama, insert ulang
+        mysqli_query($koneksi, "DELETE FROM checklist WHERE id_test_run = $id_test_run");
+        if (isset($_POST['chk_item'])) {
+            $chk_items = $_POST['chk_item'];
+            $chk_types = $_POST['chk_type'];
+            $chk_vals  = $_POST['chk_val'];
+            $chk_notes = $_POST['chk_repair_note'] ?? [];
+            for ($i = 0; $i < count($chk_items); $i++) {
+                $item  = mysqli_real_escape_string($koneksi, $chk_items[$i]);
+                $type  = mysqli_real_escape_string($koneksi, $chk_types[$i]);
+                $val   = mysqli_real_escape_string($koneksi, $chk_vals[$i]);
+                $rnote = mysqli_real_escape_string($koneksi, trim($chk_notes[$i] ?? ''));
+                mysqli_query($koneksi, "INSERT INTO checklist
+                    (id_test_run, engine_no, kategori, item_name, jawaban, repair_note)
+                    VALUES ('$id_test_run', '$engine_no', '$type', '$item', '$val', '$rnote')");
+            }
+        }
+
+        // Reset approval: hapus status Rejected yang lama, biar balik ke Pending
+        mysqli_query($koneksi, "DELETE FROM approvals WHERE test_run_id = $id_test_run AND stage = 'Test_Running'");
+
+        header("location:index.php?tr_rework_success=1");
+        exit();
+    }
+
+    // =====================================================================
+    // MODE NORMAL: submission baru
+    // =====================================================================
 
     // 7. CEK DUPLIKAT ENGINE NO DI TEST RUNNING
     $cek_dup = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id FROM result_test_run WHERE engine_no='$engine_no' LIMIT 1"));
@@ -143,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         r3_torque_nut_joint, correction_alpha, correction_beta, blow_by, min_eng_speed_lo,
         pulley_distance, fic_standard, fic_actual_left, fic_actual_right, fic_before_test_left,
         fic_before_test_right, fic_after_test_left, fic_after_test_right, belt_tension_left,
-        belt_tension_right, noted, operator_test, foto_engine_1, foto_engine_2, foto_engine_3
+        belt_tension_right, noted, ng_sections, operator_test, foto_engine_1, foto_engine_2, foto_engine_3
     ) VALUES (
         '$test_name', '$engine_model', '$engine_no', '$test_date', '$bench_test', '$operator_name',
         '$lube_oil', '$fuel_type', $fuel_sp_gravity, $dry_temp, $wet_temp, $atmosphere_press,
@@ -158,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $r3_torque_nut_joint, $correction_alpha, $correction_beta, $blow_by, $min_eng_speed_lo,
         $pulley_distance, '$fic_standard', $fic_actual_left, $fic_actual_right, $fic_before_test_left,
         $fic_before_test_right, $fic_after_test_left, $fic_after_test_right, $belt_tension_left,
-        $belt_tension_right, '$noted', '$operator_test', $foto_engine_1, $foto_engine_2, $foto_engine_3
+        $belt_tension_right, '$noted', '$ng_sections', '$operator_test', $foto_engine_1, $foto_engine_2, $foto_engine_3
     )";
 
     if (mysqli_query($koneksi, $query_utama)) {
@@ -169,13 +263,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $chk_items = $_POST['chk_item'];
             $chk_types = $_POST['chk_type'];
             $chk_vals  = $_POST['chk_val'];
+            $chk_notes = $_POST['chk_repair_note'] ?? [];
             for ($i = 0; $i < count($chk_items); $i++) {
-                $item = mysqli_real_escape_string($koneksi, $chk_items[$i]);
-                $type = mysqli_real_escape_string($koneksi, $chk_types[$i]);
-                $val  = mysqli_real_escape_string($koneksi, $chk_vals[$i]);
+                $item  = mysqli_real_escape_string($koneksi, $chk_items[$i]);
+                $type  = mysqli_real_escape_string($koneksi, $chk_types[$i]);
+                $val   = mysqli_real_escape_string($koneksi, $chk_vals[$i]);
+                $rnote = mysqli_real_escape_string($koneksi, trim($chk_notes[$i] ?? ''));
                 mysqli_query($koneksi, "INSERT INTO checklist
-                    (id_test_run, engine_no, kategori, item_name, jawaban)
-                    VALUES ('$id_test_run', '$engine_no', '$type', '$item', '$val')");
+                    (id_test_run, engine_no, kategori, item_name, jawaban, repair_note)
+                    VALUES ('$id_test_run', '$engine_no', '$type', '$item', '$val', '$rnote')");
             }
         }
 
@@ -194,4 +290,3 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     header("location:index.php");
     exit();
 }
-?>

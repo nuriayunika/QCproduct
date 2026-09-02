@@ -15,9 +15,8 @@ if (!$is_op_pk) {
 }
 
 $engine_no = mysqli_real_escape_string($koneksi, trim($_POST['engine_no'] ?? ''));
+$edit_id   = intval($_POST['edit_id'] ?? 0);
 
-// Validasi: engine_no wajib ada, FI-nya harus sudah approved Supervisor, dan belum ada Packing-nya.
-// engine_model TIDAK diambil dari form lagi -> selalu ditarik dari data FI yang sudah tersimpan.
 if ($engine_no === '') {
     die("Engine No. tidak boleh kosong.");
 }
@@ -33,6 +32,86 @@ if (!$fi) {
     die("Engine No. ini belum di-approve Supervisor di Final Inspection, atau belum ada data Final Inspection-nya.");
 }
 
+$engine_model = mysqli_real_escape_string($koneksi, $fi['engine_model']);
+$operator     = mysqli_real_escape_string($koneksi, $_POST['operator_name']  ?? $_SESSION['nama_lengkap']);
+$dicatat_oleh = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
+$pack_date    = date('Y-m-d');
+$noted        = mysqli_real_escape_string($koneksi, $_POST['noted'] ?? '');
+
+$upload_dir = 'uploads/packing/';
+if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+
+// =====================================================================
+// MODE REWORK: edit_id diisi -> UPDATE record yang REJECTED, bukan INSERT baru.
+// =====================================================================
+if ($edit_id > 0) {
+    $existing = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT id, engine_no FROM packing_data WHERE id = $edit_id"));
+    if (!$existing || $existing['engine_no'] !== $engine_no) {
+        die("Data rework tidak valid (engine_no tidak cocok).");
+    }
+    $isRejected = mysqli_fetch_assoc(mysqli_query($koneksi, "
+        SELECT id FROM approvals WHERE test_run_id = $edit_id AND stage = 'Packing' AND status = 'rejected' LIMIT 1
+    "));
+    if (!$isRejected) {
+        die("Data ini bukan data yang di-reject, tidak bisa di-rework.");
+    }
+
+    $pack_id = $edit_id;
+
+    mysqli_query($koneksi, "
+        UPDATE packing_data
+        SET engine_model = '$engine_model', operator_name = '$operator', dicatat_oleh = '$dicatat_oleh', pack_date = '$pack_date', noted = '$noted'
+        WHERE id = $pack_id
+    ");
+
+    // Ambil path foto LAMA per item (index urutan item), buat dipertahankan kalau
+    // operator nggak upload foto baru buat item itu.
+    $old_photos = [];
+    $qold = mysqli_query($koneksi, "SELECT id, item_name, foto_path FROM packing_checklist WHERE pack_id = $pack_id ORDER BY id ASC");
+    $old_photos_by_item = [];
+    if ($qold) while ($o = mysqli_fetch_assoc($qold)) $old_photos_by_item[$o['item_name']] = $o['foto_path'];
+
+    mysqli_query($koneksi, "DELETE FROM packing_checklist WHERE pack_id = $pack_id");
+
+    $items        = $_POST['item_name']  ?? [];
+    $params       = $_POST['parameter']  ?? [];
+    $results      = $_POST['result']     ?? [];
+    $files        = $_FILES['foto']      ?? [];
+    $repair_notes = $_POST['repair_note'] ?? [];
+
+    foreach ($items as $i => $item_name) {
+        $item_esc  = mysqli_real_escape_string($koneksi, $item_name);
+        $param_esc = mysqli_real_escape_string($koneksi, $params[$i] ?? '');
+        $result    = in_array($results[$i] ?? '', ['Check','NG','Rework','-']) ? $results[$i] : 'Check';
+        $foto_path = $old_photos_by_item[$item_name] ?? ''; // default: pertahankan foto lama
+        $rnote_esc = mysqli_real_escape_string($koneksi, trim($repair_notes[$i] ?? ''));
+
+        if (!empty($files['name'][$i]) && $files['error'][$i] === UPLOAD_ERR_OK) {
+            $ext     = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
+            $allowed = ['jpg','jpeg','png','webp'];
+            if (in_array($ext, $allowed)) {
+                $filename = 'pk_' . $pack_id . '_' . $i . '_' . time() . '.' . $ext;
+                $dest     = $upload_dir . $filename;
+                $saved    = resizeAndSaveImage($files['tmp_name'][$i], $dest, 1200, 75);
+                if ($saved) $foto_path = $saved;
+            }
+        }
+
+        $foto_esc = mysqli_real_escape_string($koneksi, $foto_path);
+        mysqli_query($koneksi, "INSERT INTO packing_checklist (pack_id, item_name, parameter, result, foto_path, repair_note)
+                                VALUES ($pack_id, '$item_esc', '$param_esc', '$result', '$foto_esc', '$rnote_esc')");
+    }
+
+    mysqli_query($koneksi, "DELETE FROM approvals WHERE test_run_id = $pack_id AND stage = 'Packing'");
+
+    header("location:index.php?pk_rework_success=1#packing");
+    exit();
+}
+
+// =====================================================================
+// MODE NORMAL: submission baru
+// =====================================================================
+
 // Boleh submit ulang kalau: belum pernah ada Packing sama sekali, ATAU
 // Packing terakhirnya di-reject di level manapun.
 $existing_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "
@@ -47,12 +126,6 @@ $existing_pk = mysqli_fetch_assoc(mysqli_query($koneksi, "
 if ($existing_pk) {
     die("Engine No. ini sudah ada data Packing-nya.");
 }
-
-$engine_model = mysqli_real_escape_string($koneksi, $fi['engine_model']);
-$operator     = mysqli_real_escape_string($koneksi, $_POST['operator_name']  ?? $_SESSION['nama_lengkap']);
-$dicatat_oleh = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
-$pack_date    = date('Y-m-d');
-$noted        = mysqli_real_escape_string($koneksi, $_POST['noted'] ?? '');
 
 // Validasi: SEMUA item checklist wajib ada fotonya. Dicek dulu sebelum insert
 // apapun ke database, biar kalau ada yang kurang, submit ditolak total (bukan
@@ -79,19 +152,18 @@ if (!mysqli_query($koneksi, $sql_header)) {
 $pack_id = mysqli_insert_id($koneksi);
 
 // 2. Insert checklist items
-$items   = $_POST['item_name']  ?? [];
-$params  = $_POST['parameter']  ?? [];
-$results = $_POST['result']     ?? [];
-$files   = $_FILES['foto']      ?? [];
-
-$upload_dir = 'uploads/packing/';
-if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+$items        = $_POST['item_name']  ?? [];
+$params       = $_POST['parameter']  ?? [];
+$results      = $_POST['result']     ?? [];
+$files        = $_FILES['foto']      ?? [];
+$repair_notes = $_POST['repair_note'] ?? [];
 
 foreach ($items as $i => $item_name) {
     $item_esc  = mysqli_real_escape_string($koneksi, $item_name);
     $param_esc = mysqli_real_escape_string($koneksi, $params[$i] ?? '');
-    $result    = in_array($results[$i] ?? '', ['Check','NG','-']) ? $results[$i] : 'OK';
+    $result    = in_array($results[$i] ?? '', ['Check','NG','Rework','-']) ? $results[$i] : 'Check';
     $foto_path = '';
+    $rnote_esc = mysqli_real_escape_string($koneksi, trim($repair_notes[$i] ?? ''));
 
     if (!empty($files['name'][$i]) && $files['error'][$i] === UPLOAD_ERR_OK) {
         $ext     = strtolower(pathinfo($files['name'][$i], PATHINFO_EXTENSION));
@@ -107,8 +179,8 @@ foreach ($items as $i => $item_name) {
     }
 
     $foto_esc = mysqli_real_escape_string($koneksi, $foto_path);
-    mysqli_query($koneksi, "INSERT INTO packing_checklist (pack_id, item_name, parameter, result, foto_path)
-                            VALUES ($pack_id, '$item_esc', '$param_esc', '$result', '$foto_esc')");
+    mysqli_query($koneksi, "INSERT INTO packing_checklist (pack_id, item_name, parameter, result, foto_path, repair_note)
+                            VALUES ($pack_id, '$item_esc', '$param_esc', '$result', '$foto_esc', '$rnote_esc')");
 }
 
 // 3. Tidak ada notif email (operator packing tidak punya email)
