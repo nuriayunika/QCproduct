@@ -455,19 +455,12 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
         }
     }
 
-    // Deteksi record mana yang PERNAH di-rework (ada minimal 1 item checklist yang hasilnya
-    // "Rework"), biar approver bisa langsung lihat tanpa perlu buka Detail dulu.
+    // Deteksi record mana yang PERNAH di-rework, pakai kolom is_reworked langsung
+    // (lebih pasti daripada nebak dari checklist - soalnya rework bisa aja cuma
+    // ngedit angka doang, nggak nyentuh checklist sama sekali).
     $reworkedIds = [];
-    $chkMap = [
-        'result_test_run'       => ['table' => 'checklist',                   'link' => 'id_test_run', 'col' => 'jawaban'],
-        'final_inspection_data' => ['table' => 'final_inspection_checklist',  'link' => 'fi_id',       'col' => 'result'],
-        'packing_data'          => ['table' => 'packing_checklist',          'link' => 'pack_id',      'col' => 'result'],
-    ];
-    if (isset($chkMap[$dataTable])) {
-        $ck = $chkMap[$dataTable];
-        $rq = mysqli_query($koneksi, "SELECT DISTINCT `{$ck['link']}` AS rid FROM `{$ck['table']}` WHERE `{$ck['col']}` = 'Rework'");
-        if ($rq) while ($rr = mysqli_fetch_assoc($rq)) $reworkedIds[(int)$rr['rid']] = true;
-    }
+    $rq = mysqli_query($koneksi, "SELECT id FROM `$dataTable` WHERE is_reworked = 1");
+    if ($rq) while ($rr = mysqli_fetch_assoc($rq)) $reworkedIds[(int)$rr['id']] = true;
 ?>
     <div class="d-flex justify-content-between align-items-center mb-2">
         <?php if ($anyFilterActive): ?>
@@ -670,6 +663,11 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                         <span class="badge px-2 py-1" style="font-size:9px; background:#997404; color:#fff;">
                             <i class="fa-solid fa-rotate me-1"></i>Rework
                         </span>
+                        <?php if (!empty($row['reworked_by'])): ?>
+                        <div class="text-muted" style="font-size:9px; margin-top:2px;">
+                            oleh <?php echo htmlspecialchars($row['reworked_by']); ?><?php echo !empty($row['reworked_at']) ? ' · ' . date('d/m/y H:i', strtotime($row['reworked_at'])) : ''; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
                 </td>
@@ -852,10 +850,14 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
         <!-- PANEL: DATA PERLU REWORK -->
         <div class="card mb-3 shadow-sm" id="tr_rework_panel" style="display:none;">
-            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background:linear-gradient(90deg,#664d03,#997404);">
                 <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Test Running)</h6>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm rework-search-box" data-target="tr_rework_list" placeholder="Cari Engine No..." style="max-width:180px; font-size:12px;">
+                    <button type="button" class="btn btn-sm fw-bold rework-search-btn" data-target="tr_rework_list" style="background:#fff;color:#664d03;">Cari</button>
+                </div>
             </div>
-            <div class="card-body p-2" id="tr_rework_list"></div>
+            <div class="card-body p-2" id="tr_rework_list" style="max-height:280px; overflow-y:auto;"></div>
         </div>
 
         <form action="simpan_test_run.php" method="POST" enctype="multipart/form-data" onsubmit="return validateTRForm(this)" id="form-tr" autocomplete="off">
@@ -1224,9 +1226,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold py-1" style="width: 25%;">β</td>
                                     </tr>
                                     <tr>
-                                        <td class="p-2"><input type="text" name="correction_alpha" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
-                                        <td class="p-2"><input type="text" name="correction_beta" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
-                                        <td class="p-2"><input type="text" name="blow_by" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="number" step="any" name="correction_alpha" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="number" step="any" name="correction_beta" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
+                                        <td class="p-2"><input type="number" step="any" name="blow_by" class="form-control text-center tr-sec-correction" style="border-radius: 4px;"></td>
                                     </tr>
                                     <tr style="background-color: #f5e6e6; color: var(--maroon);">
                                         <td colspan="2" class="fw-bold py-2" style="line-height: 1.3; font-size: 11px; height: 40px; vertical-align: middle;">
@@ -1239,13 +1241,13 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                     <tr>
                                         <td colspan="2" class="p-2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="min_eng_speed_lo" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="min_eng_speed_lo" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">Rpm</span>
                                             </div>
                                         </td>
                                         <td class="p-2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="pulley_distance" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="pulley_distance" class="form-control text-center tr-sec-correction" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 55px; background-color: #f5e6e6; border-left: 0; font-size: 11px; color: var(--maroon);">mm</span>
                                             </div>
                                         </td>
@@ -1274,9 +1276,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC actual</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_actual_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="fic_actual_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_actual_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
+                                                <input type="number" step="any" name="fic_actual_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1284,9 +1286,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC before test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_before_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="fic_before_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_before_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
+                                                <input type="number" step="any" name="fic_before_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1294,9 +1296,9 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">FIC after test</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="fic_after_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="fic_after_test_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; border-right: 0; color: var(--gray-md);">°/</span>
-                                                <input type="text" name="fic_after_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
+                                                <input type="number" step="any" name="fic_after_test_right" class="form-control text-center tr-sec-fic" style="border-radius: 0 4px 4px 0;">
                                             </div>
                                         </td>
                                     </tr>
@@ -1304,7 +1306,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                                         <td class="fw-bold table-light" style="padding-left: 10px; color: var(--gray-dk);">Belt tension 15-20 mm</td>
                                         <td class="p-1" colspan="2">
                                             <div class="input-group input-group-sm">
-                                                <input type="text" name="belt_tension_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
+                                                <input type="number" step="any" name="belt_tension_left" class="form-control text-center tr-sec-fic" style="border-radius: 4px 0 0 4px;">
                                                 <span class="input-group-text justify-content-center text-dark fw-bold" style="width: 50px; background: transparent; border-left: 0; color: var(--gray-md); border-radius: 0 4px 4px 0;">mm</span>
                                             </div>
                                         </td>
@@ -1384,10 +1386,14 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
         <!-- PANEL: DATA PERLU REWORK -->
         <div class="card mb-3 shadow-sm" id="fi_rework_panel" style="display:none;">
-            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background:linear-gradient(90deg,#664d03,#997404);">
                 <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Final Inspection)</h6>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm rework-search-box" data-target="fi_rework_list" placeholder="Cari Engine No..." style="max-width:180px; font-size:12px;">
+                    <button type="button" class="btn btn-sm fw-bold rework-search-btn" data-target="fi_rework_list" style="background:#fff;color:#664d03;">Cari</button>
+                </div>
             </div>
-            <div class="card-body p-2" id="fi_rework_list"></div>
+            <div class="card-body p-2" id="fi_rework_list" style="max-height:280px; overflow-y:auto;"></div>
         </div>
 
         <form action="simpan_final_inspection.php" method="POST" enctype="multipart/form-data" id="form-fi" autocomplete="off" onsubmit="return validateFIForm(this)">
@@ -1512,7 +1518,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                         <?php
                         $ref_dir = 'uploads/reference_photos/';
                         $ref_any_missing = false;
-                        for ($rf = 1; $rf <= 6; $rf++):
+                        for ($rf = 1; $rf <= 4; $rf++):
                             $ref_found = null;
                             foreach (['jpg', 'jpeg', 'png', 'webp'] as $ext) {
                                 $candidate = $ref_dir . 'foto' . $rf . '.' . $ext;
@@ -1520,7 +1526,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                             }
                             if (!$ref_found) $ref_any_missing = true;
                         ?>
-                        <div class="col-6 col-md-4 col-lg-2">
+                        <div class="col-6 col-md-3">
                             <?php if ($ref_found): ?>
                             <a href="<?php echo htmlspecialchars($ref_found); ?>" target="_blank">
                                 <img src="<?php echo htmlspecialchars($ref_found); ?>" alt="Contoh Foto <?php echo $rf; ?>"
@@ -1602,10 +1608,14 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
 
         <!-- PANEL: DATA PERLU REWORK -->
         <div class="card mb-3 shadow-sm" id="pk_rework_panel" style="display:none;">
-            <div class="card-header py-2" style="background:linear-gradient(90deg,#664d03,#997404);">
+            <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2" style="background:linear-gradient(90deg,#664d03,#997404);">
                 <h6 class="m-0 fw-bold text-white"><i class="fa-solid fa-triangle-exclamation me-2"></i>DATA PERLU REWORK (Packing)</h6>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm rework-search-box" data-target="pk_rework_list" placeholder="Cari Engine No..." style="max-width:180px; font-size:12px;">
+                    <button type="button" class="btn btn-sm fw-bold rework-search-btn" data-target="pk_rework_list" style="background:#fff;color:#664d03;">Cari</button>
+                </div>
             </div>
-            <div class="card-body p-2" id="pk_rework_list"></div>
+            <div class="card-body p-2" id="pk_rework_list" style="max-height:280px; overflow-y:auto;"></div>
         </div>
 
         <form action="simpan_packing.php" method="POST" enctype="multipart/form-data" id="form-pk" autocomplete="off" onsubmit="return validatePKForm(this)">
@@ -2277,12 +2287,14 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
             html += infoItem('Hi Idle Actual', row.hi_idle_actual);
             html += infoItem('Eng. Speed Max', row.eng_speed_max);
             html += infoItem('Eng. Speed Min', row.eng_speed_min);
+            if (row.reworked_by) html += infoItem('Dirework oleh', row.reworked_by + (row.reworked_at ? ' (' + row.reworked_at + ')' : ''));
         } else if (modul === 'final_inspection') {
             html += infoItem('Engine Model', row.engine_model);
             html += infoItem('Engine No.', row.engine_no);
             html += infoItem('Operator', row.operator_name);
             html += infoItem('Inspect Date', row.inspect_date);
             if (row.noted) html += infoItem('Noted', row.noted);
+            if (row.reworked_by) html += infoItem('Dirework oleh', row.reworked_by + (row.reworked_at ? ' (' + row.reworked_at + ')' : ''));
         } else if (modul === 'packing') {
             html += infoItem('Engine Model', row.engine_model);
             html += infoItem('Engine No.', row.engine_no);
@@ -2290,6 +2302,7 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
             html += infoItem('Dicatat Oleh', row.dicatat_oleh);
             html += infoItem('Pack Date', row.pack_date);
             if (row.noted) html += infoItem('Noted', row.noted);
+            if (row.reworked_by) html += infoItem('Dirework oleh', row.reworked_by + (row.reworked_at ? ' (' + row.reworked_at + ')' : ''));
         }
         html += '</div>';
 
@@ -2310,12 +2323,14 @@ function lihatDetail(recordId, modul, approveId, stage, role, readOnly) {
                 var result = c.jawaban || c.result || '-';
                 var kategori = c.kategori || '';
                 var resultColor;
-                if (kategori === 'Leakage Check') {
+                if (result === 'Rework') {
+                    // Cek "Rework" DULUAN, sebelum logic per-kategori - biar konsisten
+                    // warnanya kuning di semua kategori (termasuk Leakage Check).
+                    resultColor = '#e0a800';
+                } else if (kategori === 'Leakage Check') {
                     // Khusus Leakage Check: "No" = tidak ada kebocoran = bagus (hijau),
                     // "Yes" = ada kebocoran = masalah (merah) - kebalikan dari kategori lain.
                     resultColor = (result === 'No') ? '#198754' : (result === 'Yes') ? '#dc3545' : '#666';
-                } else if (result === 'Rework') {
-                    resultColor = '#e0a800';
                 } else {
                     resultColor = (result==='OK'||result==='Yes'||result==='Check') ? '#198754' : (result==='NG'||result==='No') ? '#dc3545' : '#666';
                 }
@@ -3360,9 +3375,9 @@ function loadReworkList(modul, panelId, listId) {
             return;
         }
         var html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:12px;">';
-        html += '<thead><tr style="background:#f8f9fa;"><th>Engine No.</th><th>Model</th><th>Direject oleh</th><th>Alasan</th><th style="width:110px;">Aksi</th></tr></thead><tbody>';
+        html += '<thead style="position:sticky; top:0; z-index:1;"><tr style="background:#f8f9fa;"><th>Engine No.</th><th>Model</th><th>Direject oleh</th><th>Alasan</th><th style="width:110px;">Aksi</th></tr></thead><tbody>';
         res.list.forEach(function(item) {
-            html += '<tr>';
+            html += '<tr data-engine-no="' + escHtml(item.engine_no).toLowerCase() + '">';
             html += '<td class="fw-bold">' + escHtml(item.engine_no) + '</td>';
             html += '<td>' + escHtml(item.engine_model) + '</td>';
             html += '<td>' + escHtml(item.rejected_by) + '</td>';
@@ -3378,6 +3393,26 @@ function loadReworkList(modul, panelId, listId) {
         $('#' + panelId).hide();
     });
 }
+
+// Filter baris di panel "Perlu Rework" berdasarkan Engine No. - dipicu klik tombol
+// "Cari" atau tekan Enter (bukan otomatis pas ngetik). Berlaku buat ketiga modul
+// lewat handler generic ini.
+function filterReworkList(targetId) {
+    var $box = $('.rework-search-box[data-target="' + targetId + '"]');
+    var q = $box.val().trim().toLowerCase();
+    var $rows = $('#' + targetId + ' tbody tr');
+    if (!q) { $rows.show(); return; }
+    $rows.each(function(){
+        var eno = $(this).attr('data-engine-no') || '';
+        $(this).toggle(eno.indexOf(q) !== -1);
+    });
+}
+$(document).on('click', '.rework-search-btn', function(){
+    filterReworkList($(this).data('target'));
+});
+$(document).on('keypress', '.rework-search-box', function(e){
+    if (e.which === 13) filterReworkList($(this).data('target'));
+});
 
 function loadFIForRework(id) {
     switchModule('final-inspection');

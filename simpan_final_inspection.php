@@ -51,11 +51,14 @@ if ($edit_id > 0) {
     }
 
     $fi_id = $edit_id;
+    $reworked_by = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap'] ?? '');
 
-    // Update header
+    // Update header - operator_name JANGAN ditimpa, biar tetap nyimpen siapa yang submit PERTAMA.
+    // Yang ngerjain rework dicatat terpisah di reworked_by.
     mysqli_query($koneksi, "
         UPDATE final_inspection_data
-        SET engine_model = '$engine_model', operator_name = '$operator', inspect_date = '$inspect_date', noted = '$noted'
+        SET engine_model = '$engine_model', inspect_date = '$inspect_date', noted = '$noted',
+            is_reworked = 1, reworked_by = '$reworked_by', reworked_at = NOW()
         WHERE id = $fi_id
     ");
 

@@ -57,10 +57,15 @@ if ($edit_id > 0) {
     }
 
     $pack_id = $edit_id;
+    $reworked_by = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap'] ?? '');
 
+    // operator_name (operator packing asli) JANGAN ditimpa, biar tetap nyimpen siapa yang
+    // packing PERTAMA KALI. dicatat_oleh boleh update (emang representasi "siapa yang input
+    // data sesi ini"). Yang ngerjain rework dicatat terpisah di reworked_by.
     mysqli_query($koneksi, "
         UPDATE packing_data
-        SET engine_model = '$engine_model', operator_name = '$operator', dicatat_oleh = '$dicatat_oleh', pack_date = '$pack_date', noted = '$noted'
+        SET engine_model = '$engine_model', dicatat_oleh = '$dicatat_oleh', pack_date = '$pack_date', noted = '$noted',
+            is_reworked = 1, reworked_by = '$reworked_by', reworked_at = NOW()
         WHERE id = $pack_id
     ");
 

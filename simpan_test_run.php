@@ -150,10 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         $id_test_run = $edit_id;
+        $reworked_by = mysqli_real_escape_string($koneksi, $_SESSION['nama_lengkap']);
 
         $query_update = "UPDATE result_test_run SET
+            is_reworked=1, reworked_by='$reworked_by', reworked_at=NOW(),
             test_name='$test_name', engine_model='$engine_model', test_date='$test_date', bench_test='$bench_test',
-            operator_name='$operator_name', lube_oil='$lube_oil', fuel_type='$fuel_type',
+            lube_oil='$lube_oil', fuel_type='$fuel_type',
             fuel_sp_gravity=$fuel_sp_gravity, dry_temp=$dry_temp, wet_temp=$wet_temp, atmosphere_press=$atmosphere_press,
             limiter_actual='$limiter_actual', limiter_after_set='$limiter_after_set',
             cont_power='$cont_power', max_power='$max_power', hi_idle_std='$hi_idle_std',
