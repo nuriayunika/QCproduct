@@ -1516,7 +1516,7 @@ function renderApprovalTable($dataTable, $stage, $levels, $role, $koneksi) {
                 <div class="card-body p-3">
                     <div class="row g-2">
                         <?php
-                        $ref_dir = 'uploads/reference_photos/';
+                        $ref_dir = 'reference_photos/';
                         $ref_any_missing = false;
                         for ($rf = 1; $rf <= 4; $rf++):
                             $ref_found = null;
