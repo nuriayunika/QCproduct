@@ -507,6 +507,36 @@ function qs($params_override) {
     $params = array_filter($params, function($v) { return $v !== '' && $v !== '__all__'; });
     return 'batch_pdf.php' . (count($params) ? '?' . http_build_query($params) : '');
 }
+
+// ---- PAGINATION: 50 engine per halaman ----
+// Ratakan dulu jadi list biasa (urutan tetap sama kayak $grouped_engines), biar gampang
+// dipotong per halaman, baru dikelompokkan ULANG per model khusus buat halaman yang lagi aktif.
+$flat_engines_for_page = [];
+foreach ($grouped_engines as $model_name => $engines_in_model) {
+    foreach ($engines_in_model as $eng) {
+        $eng['_model_group'] = $model_name;
+        $flat_engines_for_page[] = $eng;
+    }
+}
+$per_page_engine = 50;
+$total_engine_filtered = count($flat_engines_for_page);
+$total_engine_pages = max(1, (int) ceil($total_engine_filtered / $per_page_engine));
+$engine_page = max(1, min($total_engine_pages, (int) ($_GET['epage'] ?? 1)));
+$engine_offset = ($engine_page - 1) * $per_page_engine;
+$engines_this_page = array_slice($flat_engines_for_page, $engine_offset, $per_page_engine);
+
+// Kelompokkan ULANG khusus buat item di halaman ini aja (biar header grup model tetap muncul rapi)
+$grouped_engines_page = [];
+foreach ($engines_this_page as $eng) {
+    $grouped_engines_page[$eng['_model_group']][] = $eng;
+}
+
+function qs_engine_page($page_num) {
+    global $search_q, $active_model_param;
+    $params = ['q' => $search_q, 'model' => $active_model_param, 'epage' => $page_num];
+    $params = array_filter($params, function($v) { return $v !== '' && $v !== '__all__' && $v !== 1; });
+    return 'batch_pdf.php' . (count($params) ? '?' . http_build_query($params) : '');
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -583,7 +613,7 @@ function qs($params_override) {
                         <?php endif; ?>
                     </form>
                     <div id="engine-list">
-                    <?php foreach ($grouped_engines as $model_name => $engines_in_model): ?>
+                    <?php foreach ($grouped_engines_page as $model_name => $engines_in_model): ?>
                     <div class="engine-group" data-model="<?php echo e($model_name); ?>">
                         <div class="engine-group-header d-flex align-items-center gap-2">
                             <i class="fa-solid fa-gear" style="color:#7B1D1D;font-size:11px;"></i>
@@ -614,6 +644,26 @@ function qs($params_override) {
                     </div>
                     <?php endif; ?>
                     </div>
+                    <?php if ($total_engine_filtered > 0): ?>
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <div class="text-muted" style="font-size:11px;">
+                            Menampilkan <?php echo $engine_offset + 1; ?>&ndash;<?php echo min($engine_offset + $per_page_engine, $total_engine_filtered); ?> dari <?php echo $total_engine_filtered; ?> engine
+                        </div>
+                        <div class="d-flex gap-2">
+                            <?php if ($engine_page > 1): ?>
+                            <a href="<?php echo e(qs_engine_page($engine_page - 1)); ?>" class="btn btn-sm btn-outline-secondary fw-bold"><i class="fa-solid fa-chevron-left me-1"></i>Prev</a>
+                            <?php else: ?>
+                            <button class="btn btn-sm btn-outline-secondary fw-bold" disabled><i class="fa-solid fa-chevron-left me-1"></i>Prev</button>
+                            <?php endif; ?>
+                            <span class="btn btn-sm" style="background:#f7f2f2;color:#7B1D1D;font-weight:700;pointer-events:none;">Hal. <?php echo $engine_page; ?> / <?php echo $total_engine_pages; ?></span>
+                            <?php if ($engine_page < $total_engine_pages): ?>
+                            <a href="<?php echo e(qs_engine_page($engine_page + 1)); ?>" class="btn btn-sm fw-bold" style="background:#7B1D1D;color:#fff;">Next<i class="fa-solid fa-chevron-right ms-1"></i></a>
+                            <?php else: ?>
+                            <button class="btn btn-sm fw-bold" style="background:#ccc;color:#fff;" disabled>Next<i class="fa-solid fa-chevron-right ms-1"></i></button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
